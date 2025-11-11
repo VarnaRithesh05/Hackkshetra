@@ -1,0 +1,11 @@
+
+flask
+flask-cors
+pymongo
+transformers[sentencepiece]
+torch
+librosa
+myprosody
+pydub
+soundfile
+gunicorn
