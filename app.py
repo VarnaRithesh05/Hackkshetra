@@ -12,6 +12,18 @@ from datetime import datetime
 import os
 import soundfile as sf # Use soundfile for broader compatibility
 import pydub
+from pydub import AudioSegment
+
+# Set ffmpeg path for pydub (using imageio-ffmpeg)
+try:
+    import imageio_ffmpeg
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    AudioSegment.converter = ffmpeg_path
+    print(f"FFmpeg configured at: {ffmpeg_path}")
+except ImportError:
+    print("Warning: imageio-ffmpeg not installed. Audio conversion may fail.")
+except Exception as e:
+    print(f"Warning: Could not configure ffmpeg: {e}")
 
 # 2. Setup App, DB, and AI Model
 app = Flask(__name__, static_folder='frontend/build', static_url_path='/')
@@ -163,9 +175,23 @@ def handle_analysis():
         # --- Audio Conversion ---
         # Convert webm (from browser) to wav (for analysis libs)
         print("Converting webm to wav...")
-        audio = pydub.AudioSegment.from_file(temp_webm_path, format="webm")
-        audio.export(temp_wav_path, format="wav")
-        print("Conversion complete.")
+        
+        # Try using soundfile first (doesn't need ffmpeg)
+        try:
+            import wave
+            # For webm, we still need pydub, but we'll give a better error
+            audio = pydub.AudioSegment.from_file(temp_webm_path, format="webm")
+            audio = audio.set_channels(1)  # Mono
+            audio = audio.set_frame_rate(16000)  # 16kHz for speech
+            audio.export(temp_wav_path, format="wav")
+            print("Conversion complete.")
+        except Exception as conv_error:
+            print(f"Audio conversion error: {conv_error}")
+            raise Exception(
+                "Audio conversion failed. FFmpeg is required on Windows. "
+                "Please install FFmpeg: https://ffmpeg.org/download.html "
+                "Or use Chocolatey: 'choco install ffmpeg'"
+            )
         
         # --- Run Analysis ---
         report = analyze_audio(temp_wav_path, ground_truth_text)
