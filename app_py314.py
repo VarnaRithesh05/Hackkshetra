@@ -695,6 +695,45 @@ def get_passages():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/passages/custom', methods=['POST'])
+def add_custom_passage():
+    """
+    Add a new custom passage to the database.
+    """
+    try:
+        print("📝 POST /api/passages/custom - Adding new passage...")
+        
+        if not mongo_connected or passages_collection is None:
+            print("⚠ MongoDB not available, returning error")
+            return jsonify({"error": "Database not connected. Please check MongoDB."}), 500
+        
+        data = request.get_json()
+        title = data.get('title', '').strip()
+        level = data.get('level', 'Level 1').strip()
+        text = data.get('text', '').strip()
+        
+        if not title or not text:
+            return jsonify({"error": "Title and text are required"}), 400
+        
+        # Create passage document
+        passage = {
+            'title': title,
+            'level': level,
+            'text': text,
+            'created_at': datetime.now()
+        }
+        
+        result = passages_collection.insert_one(passage)
+        passage['_id'] = str(result.inserted_id)
+        
+        print(f"✓ Added new passage: {title} ({level})")
+        return jsonify({"message": "Passage added successfully", "passage": passage}), 201
+        
+    except Exception as e:
+        print(f"✗ Error in add_custom_passage: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/reports', methods=['GET'])
 def get_reports():
     """
@@ -709,6 +748,147 @@ def get_reports():
             reports.append(report)
         return jsonify(reports)
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/analytics/advanced', methods=['GET'])
+def get_advanced_analytics():
+    """
+    Provides comprehensive analytics data including trends, error patterns, 
+    struggling words, performance distribution, and time-based analysis.
+    """
+    try:
+        from datetime import timedelta
+        
+        # Get time filter from query params (default 30 days)
+        days = int(request.args.get('days', 30))
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        # Get all reports after cutoff date
+        reports = list(reports_collection.find({
+            'timestamp': {'$gte': cutoff_date}
+        }).sort('timestamp', 1))
+        
+        if not reports:
+            return jsonify({
+                'summary': {'total_assessments': 0, 'avg_wcpm': 0, 'avg_accuracy': 0, 'unique_students': 0},
+                'trends': [],
+                'error_patterns': [],
+                'struggling_words': [],
+                'performance_distribution': [],
+                'time_analysis': []
+            })
+        
+        # Calculate summary stats
+        total = len(reports)
+        avg_wcpm = sum(r.get('wcpm', 0) for r in reports) / total if total > 0 else 0
+        avg_accuracy = sum(r.get('accuracy_percent', 0) for r in reports) / total if total > 0 else 0
+        unique_students = len(set(r.get('student_name', '') for r in reports if r.get('student_name')))
+        
+        # Trends data (daily aggregates)
+        trends_dict = {}
+        for report in reports:
+            timestamp = report.get('timestamp', datetime.now())
+            date_key = timestamp.strftime('%Y-%m-%d')
+            if date_key not in trends_dict:
+                trends_dict[date_key] = {'wcpm': [], 'accuracy': [], 'prosody': []}
+            trends_dict[date_key]['wcpm'].append(report.get('wcpm', 0))
+            trends_dict[date_key]['accuracy'].append(report.get('accuracy_percent', 0))
+            trends_dict[date_key]['prosody'].append(report.get('prosody_score', 0))
+        
+        trends = [
+            {
+                'date': date,
+                'wcpm': sum(data['wcpm']) / len(data['wcpm']) if data['wcpm'] else 0,
+                'accuracy': sum(data['accuracy']) / len(data['accuracy']) if data['accuracy'] else 0,
+                'prosody': sum(data['prosody']) / len(data['prosody']) if data['prosody'] else 0
+            }
+            for date, data in sorted(trends_dict.items())
+        ]
+        
+        # Error patterns
+        error_counts = {'substitutions': 0, 'omissions': 0, 'insertions': 0}
+        word_errors = {}
+        
+        for report in reports:
+            opcodes = report.get('opcodes', [])
+            ground_truth_words = report.get('ground_truth_words', [])
+            
+            for op in opcodes:
+                tag = op[0]
+                if tag == 'replace':
+                    error_counts['substitutions'] += 1
+                    if len(ground_truth_words) > op[1]:
+                        word = ground_truth_words[op[1]]
+                        if word not in word_errors:
+                            word_errors[word] = {'error_count': 0, 'total': 0}
+                        word_errors[word]['error_count'] += 1
+                        word_errors[word]['total'] += 1
+                elif tag == 'delete':
+                    error_counts['omissions'] += 1
+                    if len(ground_truth_words) > op[1]:
+                        word = ground_truth_words[op[1]]
+                        if word not in word_errors:
+                            word_errors[word] = {'error_count': 0, 'total': 0}
+                        word_errors[word]['error_count'] += 1
+                        word_errors[word]['total'] += 1
+                elif tag == 'insert':
+                    error_counts['insertions'] += 1
+        
+        error_patterns = [
+            {'name': 'Substitutions', 'count': error_counts['substitutions']},
+            {'name': 'Omissions', 'count': error_counts['omissions']},
+            {'name': 'Insertions', 'count': error_counts['insertions']}
+        ]
+        
+        # Struggling words (top 20)
+        struggling_words = sorted(
+            [{'word': word, 'error_count': data['error_count'], 'total_occurrences': data['total']} 
+             for word, data in word_errors.items()],
+            key=lambda x: x['error_count'],
+            reverse=True
+        )[:20]
+        
+        # Performance distribution by WCPM ranges
+        wcpm_ranges = [(0, 30), (30, 60), (60, 90), (90, 120), (120, 200)]
+        distribution = []
+        for low, high in wcpm_ranges:
+            count = sum(1 for r in reports if low <= r.get('wcpm', 0) < high)
+            distribution.append({'range': f'{low}-{high}', 'students': count})
+        
+        # Time of day analysis
+        hour_data = {}
+        for report in reports:
+            timestamp = report.get('timestamp', datetime.now())
+            hour = timestamp.hour
+            if hour not in hour_data:
+                hour_data[hour] = {'scores': [], 'count': 0}
+            hour_data[hour]['scores'].append(report.get('wcpm', 0))
+            hour_data[hour]['count'] += 1
+        
+        time_analysis = [
+            {
+                'hour': f'{hour:02d}:00',
+                'avg_score': sum(data['scores']) / len(data['scores']) if data['scores'] else 0,
+                'assessments': data['count']
+            }
+            for hour, data in sorted(hour_data.items())
+        ]
+        
+        return jsonify({
+            'summary': {
+                'total_assessments': total,
+                'avg_wcpm': round(avg_wcpm, 1),
+                'avg_accuracy': round(avg_accuracy, 1),
+                'unique_students': unique_students
+            },
+            'trends': trends,
+            'error_patterns': error_patterns,
+            'struggling_words': struggling_words,
+            'performance_distribution': distribution,
+            'time_analysis': time_analysis
+        })
+    except Exception as e:
+        print(f"Error in advanced analytics: {e}")
         return jsonify({"error": str(e)}), 500
 
 
