@@ -469,7 +469,7 @@ function App() {
     const fetchStudents = async () => {
       try {
         const teacherId = currentUser?.id || 'default_teacher';
-        const response = await axios.get(`${API_URL}/students`, {
+        const response = await axios.get(`${API_URL}/students/list`, {
           params: { teacher_id: teacherId }
         });
         setStudentsList(response.data);
@@ -1293,7 +1293,7 @@ function App() {
             const fetchStudents = async () => {
               try {
                 const teacherId = currentUser?.id || 'default_teacher';
-                const response = await axios.get(`${API_URL}/students`, {
+                const response = await axios.get(`${API_URL}/students/list`, {
                   params: { teacher_id: teacherId }
                 });
                 setStudentsList(response.data);

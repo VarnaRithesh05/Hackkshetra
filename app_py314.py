@@ -1203,8 +1203,8 @@ def upload_students():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/students', methods=['GET'])
-def get_students():
+@app.route('/api/students/list', methods=['GET'])
+def get_students_list():
     """Get all students for a teacher - combines uploaded roster and students from reports"""
     try:
         teacher_id = request.args.get('teacher_id', 'default_teacher')
