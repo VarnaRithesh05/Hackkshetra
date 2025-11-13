@@ -6,6 +6,7 @@ import ForgotPassword from './components/Auth/ForgotPassword';
 import LandingPage from './components/LandingPage';
 import Profile from './components/Profile';
 import Dashboard from './components/Dashboard';
+import InteractiveWordPlayback from './components/InteractiveWordPlayback';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -283,7 +284,9 @@ function App() {
   useEffect(() => {
     const fetchPassages = async () => {
       try {
+        console.log("Fetching passages from:", `${API_URL}/passages`);
         const response = await axios.get(`${API_URL}/passages`);
+        console.log("Passages received:", response.data);
         setPassages(response.data);
         if (response.data.length > 0) {
           setSelectedPassageId(response.data[0]._id);
@@ -598,15 +601,24 @@ function App() {
                 <select
                   value={selectedPassageId || ''}
                   onChange={(e) => setSelectedPassageId(e.target.value)}
-                  disabled={isRecording || isLoading}
+                  disabled={isRecording || isLoading || passages.length === 0}
                   className="w-full px-3 py-2 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-bold text-sm text-purple-900 bg-white"
                 >
-                  {passages.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.level} - {p.title || 'Untitled'}
-                    </option>
-                  ))}
+                  {passages.length === 0 ? (
+                    <option value="">No stories available - Check MongoDB connection</option>
+                  ) : (
+                    passages.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.level} - {p.title || 'Untitled'}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {passages.length === 0 && (
+                  <p className="mt-2 text-xs text-red-600 font-semibold">
+                    ⚠️ Unable to load stories. Please ensure MongoDB is running and try refreshing the page.
+                  </p>
+                )}
               </div>
 
               {/* Recording Controls */}
@@ -742,6 +754,15 @@ function App() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Interactive Word Playback */}
+                  {report.word_analysis && report.word_analysis.length > 0 && (
+                    <InteractiveWordPlayback 
+                      wordAnalysis={report.word_analysis}
+                      passageText={selectedPassage?.text || ''}
+                      audioPath={report.audio_path}
+                    />
+                  )}
 
                   {/* Word-by-Word Comparison */}
                   {report.diff_html && (
