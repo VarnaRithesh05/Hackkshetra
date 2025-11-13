@@ -159,6 +159,137 @@ def create_word_comparison_html(ground_truth_words, asr_words, sequence_matcher)
     return html
 
 
+def calculate_punctuation_awareness(word_chunks, ground_truth_text):
+    """
+    Calculate punctuation awareness score by analyzing pauses at punctuation marks.
+    
+    This measures if the student is reading for meaning by checking if they pause
+    appropriately at commas and periods.
+    
+    Args:
+        word_chunks: List of word dictionaries with text and timestamp tuples
+        ground_truth_text: The original passage text
+        
+    Returns:
+        dict with punctuation_score, matched_pauses, total_expected_pauses, and details
+    """
+    print("⏸️  Analyzing Punctuation Awareness...")
+    
+    if not word_chunks or len(word_chunks) < 2:
+        print("⚠️  Not enough word chunks for punctuation analysis")
+        return {
+            "punctuation_score": 0,
+            "matched_pauses": 0,
+            "total_expected_pauses": 0,
+            "total_pauses_detected": 0,
+            "details": []
+        }
+    
+    # Constants
+    PAUSE_THRESHOLD = 0.3  # seconds - meaningful pause
+    
+    # Build a map of punctuation positions by analyzing words directly
+    ground_truth_words = ground_truth_text.lower().split()
+    punctuation_positions = []
+    
+    for idx, word in enumerate(ground_truth_words):
+        # Check if word ends with punctuation
+        if word and word[-1] in ['.', ',', '!', '?', ';', ':']:
+            punctuation_positions.append({
+                'char': word[-1],
+                'word_index': idx,
+                'word': word,
+                'is_major': word[-1] in ['.', '!', '?']  # Period-like punctuation
+            })
+    
+    print(f"📍 Found {len(punctuation_positions)} punctuation marks in passage")
+    print(f"   Punctuation locations: {[f'{p['word']}(idx:{p['word_index']})' for p in punctuation_positions[:5]]}")
+    
+    # If no punctuation found, return zero score with message
+    if len(punctuation_positions) == 0:
+        print("⚠️  No punctuation marks found in passage - cannot calculate punctuation awareness")
+        return {
+            "punctuation_score": 0,
+            "matched_pauses": 0,
+            "total_expected_pauses": 0,
+            "total_pauses_detected": 0,
+            "pause_locations": [],
+            "message": "No punctuation marks in this passage"
+        }
+    
+    # Analyze pauses between words and match with punctuation
+    pauses = []
+    matched_pauses = 0
+    total_significant_pauses = 0
+    
+    # Create a set of punctuation word indices for faster lookup
+    punct_word_indices = {p['word_index'] for p in punctuation_positions}
+    
+    for i in range(len(word_chunks) - 1):
+        current_word = word_chunks[i]
+        next_word = word_chunks[i + 1]
+        
+        # Extract timestamps
+        current_timestamp = current_word.get('timestamp', (0, 0))
+        next_timestamp = next_word.get('timestamp', (0, 0))
+        
+        if not isinstance(current_timestamp, tuple) or not isinstance(next_timestamp, tuple):
+            continue
+            
+        current_end = current_timestamp[1]
+        next_start = next_timestamp[0]
+        
+        pause_duration = next_start - current_end
+        
+        # Only consider significant pauses
+        if pause_duration >= PAUSE_THRESHOLD:
+            total_significant_pauses += 1
+            
+            # Check if current word (i) has punctuation
+            # We check current word index against punctuation positions
+            has_punctuation = i in punct_word_indices
+            expected_punct = None
+            
+            if has_punctuation:
+                # Find the punctuation details
+                for punct in punctuation_positions:
+                    if punct['word_index'] == i:
+                        expected_punct = punct
+                        break
+            
+            pause_info = {
+                'word_index': i,
+                'word': current_word.get('text', ''),
+                'pause_duration': round(pause_duration, 2),
+                'has_punctuation': has_punctuation,
+                'punctuation': expected_punct['char'] if expected_punct else None
+            }
+            
+            if has_punctuation:
+                matched_pauses += 1
+                pause_info['matched'] = True
+            else:
+                pause_info['matched'] = False
+            
+            pauses.append(pause_info)
+    
+    # Calculate score based on total expected punctuation marks
+    total_expected = len(punctuation_positions)
+    punctuation_score = 0
+    if total_expected > 0:
+        punctuation_score = (matched_pauses / total_expected) * 100
+    
+    print(f"✅ Punctuation Score: {matched_pauses}/{total_expected} expected pauses matched = {round(punctuation_score, 1)}%")
+    
+    return {
+        "punctuation_score": round(punctuation_score, 1),
+        "matched_pauses": matched_pauses,
+        "total_expected_pauses": total_expected,
+        "total_pauses_detected": total_significant_pauses,
+        "pause_locations": pauses[:10]  # Send first 10 for debugging
+    }
+
+
 def analyze_audio_simple(audio_path, ground_truth_text):
     """
     Simplified analysis function
@@ -169,20 +300,22 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     print(f"📝 Analyzing audio file: {audio_path}")
     print(f"📖 Ground truth: {ground_truth_text[:50]}...")
 
-    # 1. ASR (Automatic Speech Recognition)
-    print("🎤 Running ASR...")
+    # 1. ASR (Automatic Speech Recognition) with Word-Level Timestamps
+    print("🎤 Running ASR with word-level timestamps...")
     try:
         # Load audio with soundfile first (avoids ffmpeg dependency)
         audio_data, sample_rate = sf.read(audio_path)
         
         # Pass numpy array directly to Whisper instead of file path
-        # Use return_timestamps=True to support audio longer than 30 seconds
+        # Use return_timestamps="word" to get word-level timestamps for punctuation analysis
         asr_result = asr_pipeline(
             {"raw": audio_data, "sampling_rate": sample_rate},
-            return_timestamps=True
+            return_timestamps="word"
         )
         asr_transcript = asr_result["text"].strip().lower()
+        word_chunks = asr_result.get("chunks", [])
         print(f"📝 ASR Transcript: {asr_transcript[:50]}...")
+        print(f"📊 Got {len(word_chunks)} word-level timestamps")
     except Exception as e:
         print(f"✗ ASR Error: {e}")
         print(f"   Audio path: {audio_path}")
@@ -214,7 +347,10 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     s = difflib.SequenceMatcher(None, ground_truth_words, asr_words)
     accuracy_percent = s.ratio() * 100
     
-    # Create custom HTML diff with kid-friendly styling
+    # Get opcodes for React to render interactively
+    opcodes = s.get_opcodes()
+    
+    # Create custom HTML diff with kid-friendly styling (kept for backward compatibility)
     diff_html = create_word_comparison_html(ground_truth_words, asr_words, s)
     
     # 3. SPEED (WCPM - Words Correct Per Minute)
@@ -256,6 +392,10 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     else:
         prosody_score = "Very Fast"
     
+    # 5. PUNCTUATION AWARENESS (Pro-level metric)
+    # Measures if student pauses at commas/periods = reading for meaning
+    punctuation_analysis = calculate_punctuation_awareness(word_chunks, ground_truth_text)
+    
     print("✅ Analysis complete.")
 
     return {
@@ -263,11 +403,22 @@ def analyze_audio_simple(audio_path, ground_truth_text):
         "accuracy_percent": round(accuracy_percent, 2),
         "prosody_score": prosody_score,
         "diff_html": diff_html,
+        "opcodes": opcodes,  # For React interactive highlighting
+        "ground_truth_words": ground_truth_words,  # Original passage words
+        "asr_words": asr_words,  # What student actually said
         "articulation_rate": round(speaking_rate, 2),
-        "pause_count": 0,
+        "pause_count": punctuation_analysis["total_pauses_detected"],
         "duration_seconds": round(duration_sec, 2),
         "correct_words": correct_words,
         "total_words": len(ground_truth_words),
+        # Pro-level metric: Punctuation Awareness (clearer structure)
+        "punctuation_score": punctuation_analysis["punctuation_score"],
+        "punctuation_details": {
+            "matched_pauses": punctuation_analysis["matched_pauses"],
+            "total_expected_pauses": punctuation_analysis["total_expected_pauses"],
+            "total_pauses_detected": punctuation_analysis["total_pauses_detected"],
+            "pause_locations": punctuation_analysis["pause_locations"]
+        },
         "created_at": datetime.utcnow()
     }
 

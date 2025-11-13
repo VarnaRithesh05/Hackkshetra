@@ -195,6 +195,126 @@ const Alert = ({ type = 'info', message, onClose, darkMode }) => {
   );
 };
 
+// Interactive Word Highlighting Component
+const InteractivePassageHighlight = ({ groundTruthWords, asrWords, opcodes }) => {
+  const [hoveredWord, setHoveredWord] = useState(null);
+  
+  if (!groundTruthWords || !asrWords || !opcodes) {
+    return null;
+  }
+
+  // Create a map of word index to opcode info
+  const wordMap = {};
+  opcodes.forEach(([tag, i1, i2, j1, j2]) => {
+    for (let i = i1; i < i2; i++) {
+      wordMap[i] = {
+        tag,
+        originalWord: groundTruthWords[i],
+        spokenWord: tag === 'replace' && j1 < j2 ? asrWords[j1 + (i - i1)] : null,
+        isInsert: tag === 'insert',
+        j1, j2, i1, i2
+      };
+    }
+  });
+
+  const getWordStyle = (tag) => {
+    switch (tag) {
+      case 'equal':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'delete':
+        return 'bg-red-100 text-red-800 line-through border-red-300';
+      case 'replace':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getIcon = (tag) => {
+    switch (tag) {
+      case 'equal':
+        return '✓';
+      case 'delete':
+        return '✗';
+      case 'replace':
+        return '⚠';
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-inner border-2 border-indigo-200">
+      <div className="mb-4 flex gap-4 text-xs font-bold">
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded"></span>
+          <span className="text-gray-600">Correct</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 bg-red-100 border border-red-300 rounded"></span>
+          <span className="text-gray-600">Omitted</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></span>
+          <span className="text-gray-600">Substituted</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 bg-blue-100 border border-blue-300 rounded"></span>
+          <span className="text-gray-600">Inserted</span>
+        </div>
+      </div>
+      
+      <div className="leading-relaxed text-lg">
+        {groundTruthWords.map((word, idx) => {
+          const info = wordMap[idx] || { tag: 'equal', originalWord: word };
+          const isHovered = hoveredWord === idx;
+          
+          return (
+            <span key={idx} className="inline-block mr-1 mb-1">
+              <span
+                className={`
+                  inline-flex items-center gap-1 px-2 py-1 rounded-lg border-2 font-medium
+                  transition-all duration-200 cursor-default
+                  ${getWordStyle(info.tag)}
+                  ${isHovered ? 'scale-110 shadow-lg z-10 relative' : ''}
+                `}
+                onMouseEnter={() => setHoveredWord(idx)}
+                onMouseLeave={() => setHoveredWord(null)}
+              >
+                <span className="text-xs opacity-70">{getIcon(info.tag)}</span>
+                <span>{word}</span>
+              </span>
+              
+              {/* Tooltip for replaced words */}
+              {isHovered && info.tag === 'replace' && info.spokenWord && (
+                <div className="absolute z-50 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-lg shadow-xl animate-fadeIn">
+                  <div className="font-bold text-yellow-300">Student said:</div>
+                  <div className="text-blue-200">"{info.spokenWord}"</div>
+                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-800 transform rotate-45"></div>
+                </div>
+              )}
+            </span>
+          );
+        })}
+      </div>
+      
+      {/* Show inserted words if any */}
+      {opcodes.some(([tag]) => tag === 'insert') && (
+        <div className="mt-6 pt-4 border-t-2 border-indigo-200">
+          <div className="text-sm font-bold text-indigo-700 mb-2">🔵 Extra Words (Not in passage):</div>
+          <div className="flex flex-wrap gap-2">
+            {opcodes.filter(([tag]) => tag === 'insert').map(([tag, i1, i2, j1, j2], idx) => (
+              <span key={idx} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg border-2 border-blue-300 font-medium text-sm">
+                {asrWords.slice(j1, j2).join(' ')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // === MAIN APP COMPONENT ===
 
 function App() {
@@ -744,7 +864,7 @@ function App() {
                   </h2>
                   
                   {/* Key Metrics Grid */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <MetricCard
                       icon={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                       label="Speed"
@@ -766,6 +886,20 @@ function App() {
                       gradient="purple"
                       darkMode={darkMode}
                     />
+                    {/* NEW: Punctuation Awareness Metric */}
+                    {report.punctuation_score !== undefined && (
+                      <MetricCard
+                        icon={
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <circle cx="12" cy="12" r="1" fill="currentColor" />
+                          </svg>
+                        }
+                        label="Punctuation"
+                        value={`${Math.round(report.punctuation_score)}%`}
+                        gradient="blue"
+                      />
+                    )}
                   </div>
 
                   {/* Additional Details */}
@@ -783,14 +917,133 @@ function App() {
                     </div>
                   </div>
 
-                  {/* Word-by-Word Comparison */}
-                  {report.diff_html && (
+                  {/* Punctuation Awareness - Pro-Level Metric */}
+                  {report.punctuation_score !== undefined && (
+                    <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl shadow-lg p-6 border-2 border-cyan-300">
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-3xl">⏸️</span>
+                        <h2 className="text-2xl font-black text-cyan-700">
+                          Reading with Pauses
+                          <span className="ml-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs px-2 py-1 rounded-full font-bold">
+                            PRO
+                          </span>
+                        </h2>
+                      </div>
+
+                      {/* Simple Score Display */}
+                      <div className="bg-white rounded-xl p-6 mb-4 text-center border-2 border-cyan-200">
+                        <div className="text-6xl font-black mb-2" style={{
+                          background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent'
+                        }}>
+                          {Math.round(report.punctuation_score)}%
+                        </div>
+                        <p className="text-lg font-bold text-gray-700">Pause Score</p>
+                      </div>
+
+                      {/* What This Means - Simple Explanation */}
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 mb-4 border-2 border-blue-200">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl">💡</span>
+                          <div>
+                            <p className="font-bold text-blue-800 mb-2">What does this mean?</p>
+                            <p className="text-gray-700 text-sm leading-relaxed">
+                              {report.punctuation_score >= 80 
+                                ? "🌟 Excellent! The student paused naturally at commas (,) and periods (.). This shows they understand the story!"
+                                : report.punctuation_score >= 60
+                                ? "✅ Good! The student paused at most punctuation marks. They're reading with understanding."
+                                : report.punctuation_score >= 40
+                                ? "📖 Developing. The student is learning to pause at punctuation. Practice will help!"
+                                : "💡 Needs Practice. The student read without pausing at commas or periods. They may not understand the story yet."}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visual Breakdown - Show exactly what happened */}
+                      <div className="bg-white rounded-xl p-4 border-2 border-cyan-200">
+                        <p className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                          <span>📊</span>
+                          What We Found:
+                        </p>
+                        
+                        <div className="space-y-3">
+                          {/* Good Pauses */}
+                          <div className="flex items-center justify-between bg-green-50 rounded-lg p-3 border-2 border-green-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">✓</span>
+                              <span className="font-bold text-green-700">Good Pauses</span>
+                            </div>
+                            <div className="text-2xl font-black text-green-600">
+                              {report.punctuation_details?.matched_pauses || 0}
+                            </div>
+                          </div>
+                          
+                          {/* Missed Pauses */}
+                          <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 border-2 border-orange-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">⚠️</span>
+                              <span className="font-bold text-orange-700">Missed Pauses</span>
+                            </div>
+                            <div className="text-2xl font-black text-orange-600">
+                              {((report.punctuation_details?.total_expected_pauses || 0) - (report.punctuation_details?.matched_pauses || 0))}
+                            </div>
+                          </div>
+
+                          {/* Total Expected */}
+                          <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 border-2 border-blue-200">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">🎯</span>
+                              <span className="font-bold text-blue-700">Total Punctuation Marks</span>
+                            </div>
+                            <div className="text-2xl font-black text-blue-600">
+                              {report.punctuation_details?.total_expected_pauses || 0}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Simple Formula */}
+                        <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border-2 border-purple-200">
+                          <p className="text-center text-sm text-gray-600">
+                            <span className="font-bold text-purple-700">Score = </span>
+                            <span className="text-green-600 font-bold">{report.punctuation_details?.matched_pauses || 0}</span>
+                            <span className="mx-1">÷</span>
+                            <span className="text-blue-600 font-bold">{report.punctuation_details?.total_expected_pauses || 0}</span>
+                            <span className="mx-1">×</span>
+                            <span className="font-bold">100</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Teacher Tip */}
+                      <div className="mt-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4 border-2 border-yellow-300">
+                        <div className="flex items-start gap-2">
+                          <span className="text-xl">👨‍🏫</span>
+                          <div>
+                            <p className="font-bold text-amber-800 text-sm">Teacher Tip:</p>
+                            <p className="text-gray-700 text-xs leading-relaxed">
+                              When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, 
+                              not just pronouncing words. Practice reading aloud together, emphasizing pauses at commas and periods.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Word-by-Word Comparison - Interactive Highlighting */}
+                  {report.opcodes && report.ground_truth_words && report.asr_words && (
                     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg p-4 border-2 border-indigo-300">
                       <h3 className="text-base font-black text-indigo-700 mb-3 flex items-center">
                         <span className="text-2xl mr-2">🔍</span>
-                        Word-by-Word Check
+                        Interactive Word Analysis
                       </h3>
-                      <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: report.diff_html }} />
+                      <InteractivePassageHighlight 
+                        groundTruthWords={report.ground_truth_words}
+                        asrWords={report.asr_words}
+                        opcodes={report.opcodes}
+                      />
                     </div>
                   )}
                 </div>
