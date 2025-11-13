@@ -48,6 +48,7 @@ except Exception as e:
 db = client['akshara']
 reports_collection = db['reports']
 passages_collection = db['passages']
+students_collection = db['students']
 users_collection = db['users']
 
 # Check for ffmpeg and set environment variable
@@ -492,6 +493,40 @@ def handle_analysis():
         report['passage_id'] = str(report['passage_id'])
         
         print(f"✓ Report saved with ID: {report['_id']}")
+        
+        # Update student level based on performance
+        if student_name:
+            try:
+                accuracy = float(report.get('accuracy_percent', 0))
+                fluency = float(report.get('prosody_score', 0))
+                
+                # Get current student level
+                student = students_collection.find_one({"name": student_name})
+                if student:
+                    current_level = int(student.get('current_level', 1))
+                    
+                    # Level up if both accuracy and fluency are good (>=90%)
+                    if accuracy >= 90 and fluency >= 80:
+                        new_level = min(current_level + 1, 4)  # Max level 4
+                        if new_level != current_level:
+                            students_collection.update_one(
+                                {"name": student_name},
+                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
+                            )
+                            print(f"📈 Student level increased: {current_level} → {new_level}")
+                    
+                    # Level down if performance is poor (accuracy <70% or fluency <50%)
+                    elif (accuracy < 70 or fluency < 50) and current_level > 1:
+                        new_level = max(current_level - 1, 1)  # Min level 1
+                        if new_level != current_level:
+                            students_collection.update_one(
+                                {"name": student_name},
+                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
+                            )
+                            print(f"📉 Student level decreased: {current_level} → {new_level}")
+            except Exception as e:
+                print(f"⚠ Warning: Could not update student level: {e}")
+        
         print("="*60)
         print("✅ ANALYSIS COMPLETE - SENDING RESPONSE")
         print("="*60 + "\n")
@@ -859,6 +894,321 @@ def get_reading_groups():
         })
     except Exception as e:
         print(f"ERROR in get_reading_groups: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# STUDENT MANAGEMENT ENDPOINTS
+# ============================================================
+
+@app.route('/api/students/upload', methods=['POST'])
+def upload_students():
+    """Upload student list from Excel file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        teacher_id = request.form.get('teacher_id', 'default_teacher')
+        
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({"error": "File must be Excel format (.xlsx or .xls)"}), 400
+        
+        # Save temp file
+        temp_path = f"temp_roster_{datetime.now().timestamp()}.xlsx"
+        file.save(temp_path)
+        
+        # Parse Excel file
+        from openpyxl import load_workbook
+        wb = load_workbook(temp_path)
+        ws = wb.active
+        
+        students_added = 0
+        students_updated = 0
+        
+        # Expected columns: Name, Grade, Student ID (optional)
+        for row in ws.iter_rows(min_row=2, values_only=True):  # Skip header
+            if not row[0]:  # Skip empty rows
+                continue
+                
+            student_name = str(row[0]).strip()
+            grade = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+            student_id = str(row[2]).strip() if len(row) > 2 and row[2] else None
+            
+            if not student_name:
+                continue
+            
+            # Create student document
+            student_doc = {
+                "name": student_name,
+                "grade": grade,
+                "teacher_id": teacher_id,
+                "current_level": 1,  # Start at level 1
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            
+            if student_id:
+                student_doc["student_id"] = student_id
+            
+            # Check if student already exists
+            existing = students_collection.find_one({
+                "name": student_name,
+                "teacher_id": teacher_id
+            })
+            
+            if existing:
+                students_collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": student_doc}
+                )
+                students_updated += 1
+            else:
+                students_collection.insert_one(student_doc)
+                students_added += 1
+        
+        # Cleanup temp file
+        os.remove(temp_path)
+        
+        return jsonify({
+            "success": True,
+            "students_added": students_added,
+            "students_updated": students_updated,
+            "total": students_added + students_updated
+        })
+        
+    except Exception as e:
+        print(f"ERROR in upload_students: {e}")
+        import traceback; traceback.print_exc()
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students', methods=['GET'])
+def get_students():
+    """Get all students for a teacher"""
+    try:
+        teacher_id = request.args.get('teacher_id', 'default_teacher')
+        
+        students = list(students_collection.find(
+            {"teacher_id": teacher_id}
+        ).sort("name", 1))
+        
+        # Convert ObjectId to string
+        for student in students:
+            student['_id'] = str(student['_id'])
+            
+        return jsonify(students)
+        
+    except Exception as e:
+        print(f"ERROR in get_students: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students/<student_name>/recommended-passage', methods=['GET'])
+def get_recommended_passage(student_name):
+    """Get recommended passage for a student based on their current level"""
+    try:
+        # Find student
+        student = students_collection.find_one({"name": student_name})
+        
+        if not student:
+            # If student not found, return level 1 passage
+            passage = passages_collection.find_one({"level": "Level 1"})
+        else:
+            current_level = student.get('current_level', 1)
+            # Get passage for current level
+            passage = passages_collection.find_one({"level": f"Level {current_level}"})
+            
+            # If no passage found for level, default to level 1
+            if not passage:
+                passage = passages_collection.find_one({"level": "Level 1"})
+        
+        if passage:
+            passage['_id'] = str(passage['_id'])
+            return jsonify({
+                "passage": passage,
+                "current_level": student.get('current_level', 1) if student else 1
+            })
+        else:
+            return jsonify({"error": "No passages found"}), 404
+            
+    except Exception as e:
+        print(f"ERROR in get_recommended_passage: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students/<student_name>/history', methods=['GET'])
+def get_student_history(student_name):
+    """Get reading history for a specific student"""
+    try:
+        # Get all reports for this student
+        reports = list(reports_collection.find(
+            {"student_name": student_name}
+        ).sort("timestamp", 1))  # Chronological order
+        
+        if not reports:
+            return jsonify({
+                "student_name": student_name,
+                "reports": [],
+                "stats": {
+                    "total_readings": 0,
+                    "avg_pronunciation": 0,
+                    "avg_fluency": 0,
+                    "avg_wcpm": 0,
+                    "avg_punctuation": 0
+                },
+                "trends": {
+                    "pronunciation": "stable",
+                    "fluency": "stable",
+                    "wcpm": "stable",
+                    "punctuation": "stable"
+                },
+                "suggestions": []
+            })
+        
+        # Convert ObjectId to string
+        for report in reports:
+            report['_id'] = str(report['_id'])
+            if 'passage_id' in report:
+                report['passage_id'] = str(report['passage_id'])
+        
+        # Calculate statistics
+        total_readings = len(reports)
+        
+        # Convert all values to float to handle mixed types from database
+        pronunciation_scores = [float(r.get('accuracy_percent', 0)) for r in reports]
+        fluency_scores = [float(r.get('prosody_score', 0)) for r in reports]
+        wcpm_scores = [float(r.get('wcpm', 0)) for r in reports]
+        punctuation_scores = [float(r.get('punctuation_details', {}).get('punctuation_score', 0)) for r in reports]
+        
+        avg_pronunciation = sum(pronunciation_scores) / total_readings if total_readings > 0 else 0
+        avg_fluency = sum(fluency_scores) / total_readings if total_readings > 0 else 0
+        avg_wcpm = sum(wcpm_scores) / total_readings if total_readings > 0 else 0
+        avg_punctuation = sum(punctuation_scores) / total_readings if total_readings > 0 else 0
+        
+        # Analyze trends (compare last 3 readings to previous 3)
+        def calculate_trend(scores):
+            if len(scores) < 4:
+                return "stable"
+            recent = sum(scores[-3:]) / 3
+            previous = sum(scores[-6:-3]) / 3 if len(scores) >= 6 else sum(scores[:-3]) / len(scores[:-3])
+            if recent > previous + 5:
+                return "improving"
+            elif recent < previous - 5:
+                return "declining"
+            return "stable"
+        
+        trends = {
+            "pronunciation": calculate_trend(pronunciation_scores),
+            "fluency": calculate_trend(fluency_scores),
+            "wcpm": calculate_trend(wcpm_scores),
+            "punctuation": calculate_trend(punctuation_scores)
+        }
+        
+        # Generate suggestions based on performance
+        suggestions = []
+        
+        if avg_pronunciation < 85:
+            suggestions.append({
+                "category": "Pronunciation",
+                "priority": "high",
+                "suggestion": "Focus on phonics practice. Student struggles with accurate word pronunciation.",
+                "activities": ["Sound-symbol correspondence exercises", "Repeated reading of familiar texts"]
+            })
+        elif avg_pronunciation < 95:
+            suggestions.append({
+                "category": "Pronunciation",
+                "priority": "medium",
+                "suggestion": "Continue building decoding skills with challenging vocabulary.",
+                "activities": ["Word family exercises", "Multi-syllable word practice"]
+            })
+        
+        if avg_fluency < 70:
+            suggestions.append({
+                "category": "Fluency",
+                "priority": "high",
+                "suggestion": "Work on prosody and expression. Practice reading with appropriate pacing.",
+                "activities": ["Echo reading", "Choral reading", "Reader's theater"]
+            })
+        
+        if avg_wcpm < 60:
+            suggestions.append({
+                "category": "Reading Speed",
+                "priority": "high",
+                "suggestion": "Student reads slowly. Focus on building automaticity with high-frequency words.",
+                "activities": ["Timed repeated readings", "Sight word practice"]
+            })
+        elif avg_wcpm > 150:
+            suggestions.append({
+                "category": "Reading Speed",
+                "priority": "low",
+                "suggestion": "Student reads very quickly. Check for comprehension and accuracy.",
+                "activities": ["Comprehension questions after reading", "Slow down and focus on expression"]
+            })
+        
+        if avg_punctuation < 60:
+            suggestions.append({
+                "category": "Punctuation Awareness",
+                "priority": "medium",
+                "suggestion": "Practice pausing at punctuation marks. Model proper phrasing.",
+                "activities": ["Marked text reading", "Punctuation treasure hunt", "Pause and breathe exercises"]
+            })
+        
+        # Trend-based suggestions
+        if trends["pronunciation"] == "declining":
+            suggestions.append({
+                "category": "Alert",
+                "priority": "high",
+                "suggestion": "⚠️ Pronunciation scores are declining. Schedule intervention time.",
+                "activities": ["One-on-one reading support", "Diagnostic assessment"]
+            })
+        
+        if trends["fluency"] == "improving":
+            suggestions.append({
+                "category": "Positive Progress",
+                "priority": "low",
+                "suggestion": "🎉 Great progress in fluency! Keep up the good work.",
+                "activities": ["Challenge with higher-level texts", "Peer reading partnerships"]
+            })
+        
+        if not suggestions:
+            suggestions.append({
+                "category": "Overall",
+                "priority": "low",
+                "suggestion": "✅ Student is performing well across all metrics. Continue current practices.",
+                "activities": ["Maintain regular practice", "Introduce more complex texts"]
+            })
+        
+        return jsonify({
+            "student_name": student_name,
+            "reports": reports,
+            "stats": {
+                "total_readings": total_readings,
+                "avg_pronunciation": round(avg_pronunciation, 1),
+                "avg_fluency": round(avg_fluency, 1),
+                "avg_wcpm": round(avg_wcpm, 1),
+                "avg_punctuation": round(avg_punctuation, 1)
+            },
+            "trends": trends,
+            "suggestions": suggestions,
+            "chart_data": {
+                "labels": [r.get('timestamp', '') for r in reports],
+                "pronunciation": pronunciation_scores,
+                "fluency": fluency_scores,
+                "wcpm": wcpm_scores,
+                "punctuation": punctuation_scores
+            }
+        })
+        
+    except Exception as e:
+        print(f"ERROR in get_student_history: {e}")
         import traceback; traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
