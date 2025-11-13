@@ -676,6 +676,79 @@ def get_reports():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/students', methods=['GET'])
+def get_students():
+    """
+    Get all students with their latest assessment metrics.
+    Groups reports by student_name and returns summary data.
+    """
+    try:
+        # Aggregate to get latest assessment per student
+        pipeline = [
+            {
+                '$match': {
+                    'student_name': {'$exists': True, '$ne': None, '$ne': ''}
+                }
+            },
+            {
+                '$sort': {'created_at': -1}
+            },
+            {
+                '$group': {
+                    '_id': '$student_name',
+                    'lastTestDate': {'$first': '$created_at'},
+                    'wcpm': {'$first': '$wcpm'},
+                    'accuracy': {'$first': '$accuracy_percent'},
+                    'prosody': {'$first': '$prosody_score'},
+                    'studentId': {'$first': '$student_id'},
+                    'grade': {'$first': '$student_grade'},
+                    'totalAssessments': {'$sum': 1}
+                }
+            },
+            {
+                '$project': {
+                    '_id': 0,
+                    'name': '$_id',
+                    'studentId': 1,
+                    'grade': 1,
+                    'lastTestDate': 1,
+                    'wcpm': 1,
+                    'accuracy': 1,
+                    'prosody': 1,
+                    'totalAssessments': 1
+                }
+            },
+            {
+                '$sort': {'name': 1}
+            }
+        ]
+        
+        students = list(reports_collection.aggregate(pipeline))
+        return jsonify(students)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students/<student_name>/assessments', methods=['GET'])
+def get_student_assessments(student_name):
+    """
+    Get all assessments for a specific student.
+    """
+    try:
+        assessments = []
+        for report in reports_collection.find({
+            'student_name': student_name
+        }).sort("created_at", 1):
+            report['_id'] = str(report['_id'])
+            if 'passage_id' in report:
+                report['passage_id'] = str(report['passage_id'])
+            assessments.append(report)
+        
+        return jsonify(assessments)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/auth/signup', methods=['POST'])
 def auth_signup():
     try:
@@ -713,16 +786,28 @@ def auth_signup():
 def auth_login():
     try:
         data = request.get_json(silent=True)
+        print('DEBUG auth_login: received data ->', data)
         if data is None:
+            print('DEBUG auth_login: missing JSON body')
             return jsonify({"error": "Invalid or missing JSON body."}), 400
 
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
+        print(f'DEBUG auth_login: email={email}, password_length={len(password)}')
+        
         if not email or not password:
+            print('DEBUG auth_login: email or password missing')
             return jsonify({"error": "Email and password are required."}), 400
 
+        if not mongo_connected:
+            print('DEBUG auth_login: MongoDB not connected')
+            return jsonify({"error": "Database not available."}), 500
+
         user = users_collection.find_one({"email": email})
+        print(f'DEBUG auth_login: user found = {user is not None}')
+        
         if not user:
+            print(f'DEBUG auth_login: No user found with email {email}')
             return jsonify({"error": "Invalid credentials."}), 401
         
         # Defensive: handle old user documents that might not have password_hash
@@ -732,7 +817,9 @@ def auth_login():
 
         # Verify password
         try:
-            if not check_password_hash(user['password_hash'], password):
+            password_valid = check_password_hash(user['password_hash'], password)
+            print(f'DEBUG auth_login: password valid = {password_valid}')
+            if not password_valid:
                 return jsonify({"error": "Invalid credentials."}), 401
         except Exception as pw_err:
             print(f'ERROR checking password for {email}:', pw_err)

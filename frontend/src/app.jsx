@@ -7,6 +7,8 @@ import LandingPage from './components/LandingPage';
 import Profile from './components/Profile';
 import Dashboard from './components/Dashboard';
 import InteractiveWordPlayback from './components/InteractiveWordPlayback';
+import StudentTable from './components/StudentTable';
+import StudentDashboard from './components/StudentDashboard';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -432,6 +434,12 @@ function App() {
   const [studentGrade, setStudentGrade] = useState('');
   const [studentId, setStudentId] = useState('');
 
+  // Student dashboard state
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentAssessments, setStudentAssessments] = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
@@ -486,6 +494,54 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Fetch students
+  const fetchStudents = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axios.get(`${API_URL}/students`);
+      setStudents(response.data);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching students:", err);
+      setError("Could not load students.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch student assessments
+  const fetchStudentAssessments = async (studentName) => {
+    try {
+      setIsLoading(true);
+      const response = await axios.get(`${API_URL}/students/${encodeURIComponent(studentName)}/assessments`);
+      setStudentAssessments(response.data);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching student assessments:", err);
+      setError("Could not load student assessments.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle student click
+  const handleStudentClick = async (student) => {
+    setSelectedStudent(student);
+    await fetchStudentAssessments(student.name);
+  };
+
+  // Handle back to students table
+  const handleBackToStudents = () => {
+    setSelectedStudent(null);
+    setStudentAssessments([]);
+    setSelectedReport(null);
+  };
+
+  // Handle view detailed report
+  const handleViewReport = (assessment) => {
+    setSelectedReport(assessment);
   };
 
   // Recording functions
@@ -661,7 +717,9 @@ function App() {
             <button
               onClick={() => {
                 setView('history');
-                fetchHistory();
+                fetchStudents();
+                setSelectedStudent(null);
+                setSelectedReport(null);
               }}
               className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
                 view === 'history'
@@ -671,7 +729,7 @@ function App() {
             >
               <span className="flex items-center space-x-2">
                 <span className="text-xl">📊</span>
-                <span>All Scores</span>
+                <span>All Students</span>
               </span>
             </button>
           </div>
@@ -1056,70 +1114,80 @@ function App() {
               )}
             </div>
           </div>
-        ) : (
-          /* History View */
-          <div className={`${darkMode ? 'bg-gray-800/90 border-purple-600' : 'bg-white/80 border-purple-200'} backdrop-blur-sm rounded-2xl shadow-xl p-4 border-2 transition-colors`}>
-            <h2 className={`text-2xl font-black ${darkMode ? 'text-purple-400' : 'text-purple-700'} mb-4 flex items-center transition-colors`}>
-              <span className="text-3xl mr-2">📚</span>
-              All Scores
-            </h2>
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <Spinner />
-                <span className={`ml-3 ${darkMode ? 'text-gray-300' : 'text-gray-600'} font-bold transition-colors`}>Loading...</span>
+        ) : selectedReport ? (
+          /* Detailed Report View */
+          <div className={`${darkMode ? 'bg-gray-800/90 border-purple-600' : 'bg-white/80 border-purple-200'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
+            <button
+              onClick={() => setSelectedReport(null)}
+              className={`mb-4 px-4 py-2 rounded-lg font-bold transition-all ${
+                darkMode 
+                  ? 'bg-gray-700 text-white hover:bg-gray-600' 
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              ← Back to Student Dashboard
+            </button>
+            
+            {/* Show the full report details here - reuse existing report display */}
+            <div className={`${darkMode ? 'bg-gray-900/50' : 'bg-white'} rounded-xl p-6`}>
+              <h2 className={`text-3xl font-black mb-6 ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>
+                Assessment Details
+              </h2>
+              
+              {/* Display passage */}
+              {selectedReport.passage_text && (
+                <div className={`mb-6 p-4 rounded-xl ${darkMode ? 'bg-yellow-900/20 border-yellow-700' : 'bg-yellow-50 border-yellow-200'} border-2`}>
+                  <h3 className={`font-bold mb-2 ${darkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>Passage:</h3>
+                  <p className={`${darkMode ? 'text-gray-300' : 'text-gray-800'}`}>{selectedReport.passage_text}</p>
+                </div>
+              )}
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-4 rounded-lg`}>
+                  <span className="block text-sm">Speed</span>
+                  <span className="font-bold text-2xl">{Math.round(selectedReport.wcpm)}</span>
+                </div>
+                <div className={`${darkMode ? 'bg-green-900 text-green-200' : 'bg-green-50 text-green-700'} p-4 rounded-lg`}>
+                  <span className="block text-sm">Accuracy</span>
+                  <span className="font-bold text-2xl">{Math.round(selectedReport.accuracy_percent)}%</span>
+                </div>
+                <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-4 rounded-lg`}>
+                  <span className="block text-sm">Prosody</span>
+                  <span className="font-bold text-2xl">{selectedReport.prosody_score}</span>
+                </div>
+                <div className={`${darkMode ? 'bg-cyan-900 text-cyan-200' : 'bg-cyan-50 text-cyan-700'} p-4 rounded-lg`}>
+                  <span className="block text-sm">Punctuation</span>
+                  <span className="font-bold text-2xl">{selectedReport.punctuation_score ? Math.round(selectedReport.punctuation_score) : 0}%</span>
+                </div>
               </div>
-            ) : history.length === 0 ? (
-              <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>
-                <div className="text-6xl mb-3">📝</div>
-                <p className="font-bold">No scores yet!</p>
-                <p className="text-sm">Record a student to get started.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {history.map((item, idx) => (
-                  <div key={item._id} className={`${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} border rounded-xl p-4 hover:shadow-lg transition-all shadow-sm`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm">
-                        #{history.length - idx}
-                      </span>
-                      <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} font-medium transition-colors`}>
-                        {new Date(item.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    
-                    {/* Student Information */}
-                    {item.student_name && (
-                      <div className={`mb-3 p-3 ${darkMode ? 'bg-gradient-to-r from-blue-900 to-indigo-900 border-blue-700' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'} rounded-lg border transition-colors`}>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xl">👦</span>
-                          <div className="flex-1">
-                            <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'} text-sm transition-colors`}>{item.student_name}</span>
-                            {item.student_grade && <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} ml-2 text-xs font-medium transition-colors`}>• {item.student_grade}</span>}
-                            {item.student_id && <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs ml-2 transition-colors`}>(ID: {item.student_id})</span>}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className={`${darkMode ? 'bg-gradient-to-br from-blue-900 to-blue-800' : 'bg-gradient-to-br from-blue-50 to-blue-100'} border-l-4 border-blue-400 p-3 rounded-lg text-center shadow-sm transition-colors`}>
-                        <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'} font-semibold block transition-colors`}>Speed</span>
-                        <p className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors`}>{Math.round(item.wcpm)}</p>
-                      </div>
-                      <div className={`${darkMode ? 'bg-gradient-to-br from-green-900 to-green-800' : 'bg-gradient-to-br from-green-50 to-green-100'} border-l-4 border-green-400 p-3 rounded-lg text-center shadow-sm transition-colors`}>
-                        <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'} font-semibold block transition-colors`}>Accuracy</span>
-                        <p className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors`}>{Math.round(item.accuracy_percent)}%</p>
-                      </div>
-                      <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-purple-800' : 'bg-gradient-to-br from-purple-50 to-purple-100'} border-l-4 border-purple-400 p-3 rounded-lg text-center shadow-sm transition-colors`}>
-                        <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'} font-semibold block transition-colors`}>Speed</span>
-                        <p className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors`}>{item.prosody_score}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+
+              {/* Interactive Word Playback */}
+              {selectedReport.word_analysis && selectedReport.word_analysis.length > 0 && (
+                <InteractiveWordPlayback 
+                  wordAnalysis={selectedReport.word_analysis}
+                  passageText={selectedReport.passage_text || ''}
+                  audioPath={selectedReport.audio_path}
+                />
+              )}
+            </div>
           </div>
+        ) : selectedStudent ? (
+          /* Student Dashboard */
+          <StudentDashboard 
+            student={selectedStudent}
+            assessments={studentAssessments}
+            onBack={handleBackToStudents}
+            onViewReport={handleViewReport}
+            darkMode={darkMode}
+          />
+        ) : (
+          /* Student Table View */
+          <StudentTable 
+            students={students}
+            onStudentClick={handleStudentClick}
+            darkMode={darkMode}
+          />
         )}
       </div>
 
