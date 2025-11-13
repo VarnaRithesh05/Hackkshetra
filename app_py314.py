@@ -1118,22 +1118,64 @@ def upload_students():
 
 @app.route('/api/students', methods=['GET'])
 def get_students():
-    """Get all students for a teacher"""
+    """Get all students for a teacher - combines uploaded roster and students from reports"""
     try:
         teacher_id = request.args.get('teacher_id', 'default_teacher')
         
-        students = list(students_collection.find(
+        # Get students from uploaded roster
+        roster_students = list(students_collection.find(
             {"teacher_id": teacher_id}
         ).sort("name", 1))
         
         # Convert ObjectId to string
-        for student in students:
+        for student in roster_students:
             student['_id'] = str(student['_id'])
-            
-        return jsonify(students)
+        
+        # Get unique students from reports collection (those who have taken tests)
+        # Use aggregation to get distinct student names from reports
+        report_students_pipeline = [
+            {"$match": {"student_name": {"$exists": True, "$ne": ""}}},
+            {"$group": {
+                "_id": "$student_name",
+                "name": {"$first": "$student_name"},
+                "grade": {"$first": "$student_grade"},
+                "student_id": {"$first": "$student_id"}
+            }},
+            {"$sort": {"name": 1}}
+        ]
+        
+        report_students = list(reports_collection.aggregate(report_students_pipeline))
+        
+        # Combine both lists, avoiding duplicates
+        students_map = {}
+        
+        # Add roster students first (they have priority if duplicate)
+        for student in roster_students:
+            students_map[student['name']] = student
+        
+        # Add report students if not already in roster
+        for student in report_students:
+            student_name = student['name']
+            if student_name not in students_map:
+                # Create a student record from report data
+                students_map[student_name] = {
+                    '_id': str(student['_id']),
+                    'name': student_name,
+                    'grade': student.get('grade', ''),
+                    'student_id': student.get('student_id', ''),
+                    'teacher_id': teacher_id,
+                    'source': 'reports'  # Indicate this came from reports, not roster
+                }
+        
+        # Convert map back to list and sort
+        combined_students = sorted(students_map.values(), key=lambda x: x['name'])
+        
+        return jsonify(combined_students)
         
     except Exception as e:
         print(f"ERROR in get_students: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
