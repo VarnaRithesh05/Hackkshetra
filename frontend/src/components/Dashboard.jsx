@@ -4,17 +4,16 @@ import axios from 'axios';
 const API_URL = 'http://127.0.0.1:5000/api';
 
 const Spinner = () => (
-  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
+  <div className="flex items-center justify-center py-12">
+    <div className="w-12 h-12 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin"></div>
+  </div>
 );
 
-const StatCard = ({ icon, label, value, color }) => (
-  <div className={`bg-gradient-to-br ${color} rounded-2xl shadow-lg p-6 text-white`}>
+const StatCard = ({ icon, label, value, borderColor }) => (
+  <div className={`bg-white border-l-4 ${borderColor} rounded-xl p-6 shadow-sm hover:shadow-md transition-all`}>
     <div className="text-4xl mb-2">{icon}</div>
-    <p className="text-sm font-bold opacity-80">{label}</p>
-    <p className="text-4xl font-black">{value}</p>
+    <p className="text-sm font-medium text-gray-600 mb-2">{label}</p>
+    <p className="text-3xl font-black text-gray-900">{value}</p>
   </div>
 );
 
@@ -53,72 +52,80 @@ export default function Dashboard({ setView }) {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-16">
+      <div className="flex flex-col justify-center items-center py-16">
         <Spinner />
-        <span className="ml-3 text-gray-600 font-bold">Loading dashboard...</span>
+        <span className="mt-4 text-gray-600 font-semibold">Loading dashboard...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 flex items-center">
-          <span className="text-4xl mr-2">📊</span>
-          Class Dashboard
-        </h1>
-        <p className="text-gray-600 text-sm font-bold mt-1">Monitor your students' reading progress at a glance</p>
-      </div>
+    <div className="min-h-screen bg-white relative overflow-hidden">
+      {/* Gradient Orbs Background */}
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-emerald-200/40 to-teal-300/40 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-pink-200/40 to-rose-300/40 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
 
-      {error && (
-        <div className="bg-red-100 border-2 border-red-400 rounded-xl p-4 text-red-800 font-bold">
-          {error}
-          <button onClick={fetchDashboardData} className="ml-3 underline font-black">Retry</button>
+      <div className="relative z-10 max-w-6xl mx-auto px-8 py-12 space-y-12">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-5xl font-black text-gray-900 flex items-center mb-3">
+            <span className="text-5xl mr-3">📊</span>
+            Class Dashboard
+          </h1>
+          <p className="text-gray-600 text-lg">Monitor your students' reading progress at a glance</p>
         </div>
-      )}
+
+        {error && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-start space-x-3">
+            <span className="text-2xl">❌</span>
+            <div className="flex-1">
+              <p className="font-bold text-red-900">{error}</p>
+              <button onClick={fetchDashboardData} className="mt-2 text-sm text-red-700 underline font-semibold">Retry</button>
+            </div>
+          </div>
+        )}
 
       {/* Class Statistics */}
       {classStats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatCard
             icon="👥"
             label="Total Students"
             value={classStats.totalStudents || 0}
-            color="from-blue-400 to-cyan-400"
+            borderColor="border-l-blue-500"
           />
           <StatCard
             icon="⚡"
             label="Avg Speed (WCPM)"
             value={Math.round(classStats.avgWcpm || 0)}
-            color="from-green-400 to-emerald-400"
+            borderColor="border-l-green-500"
           />
           <StatCard
             icon="🎯"
             label="Avg Accuracy"
             value={`${Math.round(classStats.avgAccuracy || 0)}%`}
-            color="from-purple-400 to-pink-400"
+            borderColor="border-l-purple-500"
           />
         </div>
       )}
 
       {/* Reading Groups Section */}
       {readingGroups && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Intervention Group */}
-          <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl shadow-lg p-6 border-2 border-red-200">
-            <h2 className="text-lg font-black text-red-700 mb-3 flex items-center">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+            <h2 className="text-lg font-bold text-red-800 mb-3 flex items-center">
               <span className="text-2xl mr-2">🚨</span>
               Intervention
             </h2>
-            <p className="text-xs text-red-600 font-bold mb-3">{readingGroups.intervention.length} students</p>
+            <p className="text-sm text-red-600 mb-4">{readingGroups.intervention.length} students</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {readingGroups.intervention.length === 0 ? (
                 <p className="text-sm text-gray-600">No students need intervention</p>
               ) : (
                 readingGroups.intervention.map((student, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-2 border-l-4 border-red-500">
-                    <p className="text-sm font-black text-gray-800">{student.student_name}</p>
+                  <div key={idx} className="bg-white rounded-lg p-3 border-l-4 border-red-500 shadow-sm">
+                    <p className="text-sm font-bold text-gray-900">{student.student_name}</p>
                     <p className="text-xs text-red-700">Accuracy: {Math.round(student.accuracy_percent)}%</p>
                   </div>
                 ))
@@ -127,20 +134,20 @@ export default function Dashboard({ setView }) {
           </div>
 
           {/* Instructional Group */}
-          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl shadow-lg p-6 border-2 border-yellow-200">
-            <h2 className="text-lg font-black text-amber-700 mb-3 flex items-center">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
+            <h2 className="text-lg font-bold text-yellow-800 mb-3 flex items-center">
               <span className="text-2xl mr-2">📚</span>
               Instructional
             </h2>
-            <p className="text-xs text-amber-600 font-bold mb-3">{readingGroups.instructional.length} students</p>
+            <p className="text-sm text-yellow-600 mb-4">{readingGroups.instructional.length} students</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {readingGroups.instructional.length === 0 ? (
                 <p className="text-sm text-gray-600">No students in this group</p>
               ) : (
                 readingGroups.instructional.map((student, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-2 border-l-4 border-amber-500">
-                    <p className="text-sm font-black text-gray-800">{student.student_name}</p>
-                    <p className="text-xs text-amber-700">Accuracy: {Math.round(student.accuracy_percent)}%</p>
+                  <div key={idx} className="bg-white rounded-lg p-3 border-l-4 border-yellow-500 shadow-sm">
+                    <p className="text-sm font-bold text-gray-900">{student.student_name}</p>
+                    <p className="text-xs text-yellow-700">Accuracy: {Math.round(student.accuracy_percent)}%</p>
                   </div>
                 ))
               )}
@@ -148,19 +155,19 @@ export default function Dashboard({ setView }) {
           </div>
 
           {/* Independent Group */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-lg p-6 border-2 border-green-200">
-            <h2 className="text-lg font-black text-green-700 mb-3 flex items-center">
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+            <h2 className="text-lg font-bold text-green-800 mb-3 flex items-center">
               <span className="text-2xl mr-2">⭐</span>
               Independent
             </h2>
-            <p className="text-xs text-green-600 font-bold mb-3">{readingGroups.independent.length} students</p>
+            <p className="text-sm text-green-600 mb-4">{readingGroups.independent.length} students</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {readingGroups.independent.length === 0 ? (
                 <p className="text-sm text-gray-600">No students yet</p>
               ) : (
                 readingGroups.independent.map((student, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-2 border-l-4 border-green-500">
-                    <p className="text-sm font-black text-gray-800">{student.student_name}</p>
+                  <div key={idx} className="bg-white rounded-lg p-3 border-l-4 border-green-500 shadow-sm">
+                    <p className="text-sm font-bold text-gray-900">{student.student_name}</p>
                     <p className="text-xs text-green-700">Accuracy: {Math.round(student.accuracy_percent)}%</p>
                   </div>
                 ))
@@ -172,27 +179,27 @@ export default function Dashboard({ setView }) {
 
       {/* At-Risk Students */}
       {atRiskStudents.length > 0 && (
-        <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl shadow-lg p-6 border-2 border-orange-300">
-          <h2 className="text-lg font-black text-orange-700 mb-4 flex items-center">
-            <span className="text-2xl mr-2">⚠️</span>
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6">
+          <h2 className="text-xl font-black text-orange-800 mb-4 flex items-center">
+            <span className="text-3xl mr-2">⚠️</span>
             Top At-Risk Students
           </h2>
-          <p className="text-xs text-orange-600 font-bold mb-4">Students with accuracy below 90% - prioritize support</p>
+          <p className="text-sm text-orange-600 mb-4">Students with accuracy below 90% - prioritize support</p>
           <div className="space-y-3">
             {atRiskStudents.map((student, idx) => (
-              <div key={idx} className="bg-white rounded-lg p-4 shadow-md border-l-4 border-orange-500">
+              <div key={idx} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-orange-500">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="font-black text-gray-800">{idx + 1}. {student.student_name}</p>
-                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-black">
+                  <p className="font-black text-gray-900">{idx + 1}. {student.student_name}</p>
+                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
                     {Math.round(student.accuracy_percent)}%
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                   <div>
-                    <p className="text-gray-600">Speed: <span className="font-bold text-gray-800">{Math.round(student.wcpm)} WCPM</span></p>
+                    <p>Speed: <span className="font-semibold text-gray-900">{Math.round(student.wcpm)} WCPM</span></p>
                   </div>
                   <div>
-                    <p className="text-gray-600">Expression: <span className="font-bold text-gray-800">{student.prosody_score}</span></p>
+                    <p>Expression: <span className="font-semibold text-gray-900">{student.prosody_score}</span></p>
                   </div>
                 </div>
               </div>
@@ -202,21 +209,22 @@ export default function Dashboard({ setView }) {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
           onClick={() => setView('record')}
-          className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all flex items-center justify-center space-x-2"
+          className="px-8 py-4 border-2 border-gray-900 rounded-full bg-gray-900 text-white font-semibold hover:bg-gray-800 transition-all flex items-center justify-center space-x-2"
         >
           <span className="text-2xl">🎤</span>
           <span>Record Reading</span>
         </button>
         <button
           onClick={() => setView('history')}
-          className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all flex items-center justify-center space-x-2"
+          className="px-8 py-4 border-2 border-gray-900 rounded-full text-gray-900 font-semibold hover:bg-gray-900 hover:text-white transition-all flex items-center justify-center space-x-2"
         >
           <span className="text-2xl">📊</span>
           <span>View All Scores</span>
         </button>
+      </div>
       </div>
     </div>
   );
