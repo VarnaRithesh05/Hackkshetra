@@ -402,7 +402,12 @@ def get_reports():
 @app.route('/api/auth/signup', methods=['POST'])
 def auth_signup():
     try:
-        data = request.get_json(force=True)
+        # parse JSON safely - avoid raising BadRequest which bubbles into our 500
+        data = request.get_json(silent=True)
+        print('DEBUG auth_login: raw data ->', data)
+        if data is None:
+            print('DEBUG auth_login: missing JSON body')
+            return jsonify({"error": "Invalid or missing JSON body."}), 400
         email = data.get('email', '').strip().lower()
         name = data.get('name', '').strip()
         password = data.get('password', '')
@@ -430,7 +435,10 @@ def auth_signup():
 @app.route('/api/auth/login', methods=['POST'])
 def auth_login():
     try:
-        data = request.get_json(force=True)
+        data = request.get_json(silent=True)
+        if data is None:
+            return jsonify({"error": "Invalid or missing JSON body."}), 400
+
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
         if not email or not password:
@@ -439,16 +447,28 @@ def auth_login():
         user = users_collection.find_one({"email": email})
         if not user:
             return jsonify({"error": "Invalid credentials."}), 401
+        
+        # Defensive: handle old user documents that might not have password_hash
+        if 'password_hash' not in user:
+            print(f'WARNING: User {email} has no password_hash field - old document?')
+            return jsonify({"error": "Invalid credentials."}), 401
 
-        if not check_password_hash(user.get('password_hash', ''), password):
+        # Verify password
+        try:
+            if not check_password_hash(user['password_hash'], password):
+                return jsonify({"error": "Invalid credentials."}), 401
+        except Exception as pw_err:
+            print(f'ERROR checking password for {email}:', pw_err)
             return jsonify({"error": "Invalid credentials."}), 401
 
         # Simple session token (not JWT) - in production use secure JWTs and HTTPS
-            token = os.urandom(24).hex()
-            users_collection.update_one({"_id": user['_id']}, {"$set": {"last_token": token, "last_login": datetime.utcnow()}})
+        token = os.urandom(24).hex()
+        users_collection.update_one({"_id": user['_id']}, {"$set": {"last_token": token, "last_login": datetime.utcnow()}})
 
-            return jsonify({"success": True, "user": {"_id": str(user['_id']), "email": user['email'], "name": user.get('name', '')}, "token": token})
+        return jsonify({"success": True, "user": {"_id": str(user['_id']), "email": user['email'], "name": user.get('name', '')}, "token": token})
     except Exception as e:
+        print('ERROR in auth_login:', e)
+        import traceback; traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
