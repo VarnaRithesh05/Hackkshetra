@@ -5,6 +5,7 @@ import Signup from './components/Auth/Signup';
 import ForgotPassword from './components/Auth/ForgotPassword';
 import LandingPage from './components/LandingPage';
 import Profile from './components/Profile';
+import Dashboard from './components/Dashboard';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -207,6 +208,9 @@ function App() {
     localStorage.setItem('authToken', token);
     localStorage.setItem('currentUser', JSON.stringify(u));
     setAuthToken(token);
+    // Set view to dashboard after login
+    setView('dashboard');
+    try { window.location.hash = ''; } catch (e) {}
   };
 
   const handleLogout = () => {
@@ -238,9 +242,13 @@ function App() {
         const h = window.location.hash || '';
         if (h === '#/profile') {
           setView('profile');
-        } else {
-          // default to record for any other hash or empty
+        } else if (h === '#/record') {
           setView('record');
+        } else if (h === '#/history') {
+          setView('history');
+        } else {
+          // default to dashboard for empty hash
+          setView('dashboard');
         }
       } catch (e) {
         // ignore
@@ -257,7 +265,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
-  const [view, setView] = useState('record');
+  const [view, setView] = useState('dashboard');
   const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
@@ -465,6 +473,19 @@ function App() {
         <div className="container mx-auto px-4">
           <div className="flex space-x-4">
             <button
+              onClick={() => setView('dashboard')}
+              className={`py-3 px-4 border-b-4 font-bold text-sm transition-all transform ${
+                view === 'dashboard'
+                  ? 'border-indigo-500 text-indigo-600 scale-105'
+                  : 'border-transparent text-gray-500 hover:text-indigo-500 hover:border-indigo-300'
+              }`}
+            >
+              <span className="flex items-center space-x-2">
+                <span className="text-xl">🏠</span>
+                <span>Dashboard</span>
+              </span>
+            </button>
+            <button
               onClick={() => setView('record')}
               className={`py-3 px-4 border-b-4 font-bold text-sm transition-all transform ${
                 view === 'record'
@@ -500,7 +521,9 @@ function App() {
       <div className="container mx-auto px-4 py-4">
         {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
-        {view === 'record' ? (
+        {view === 'dashboard' ? (
+          <Dashboard setView={setView} />
+        ) : view === 'record' ? (
           <div className="grid lg:grid-cols-2 gap-4">
             {/* Left Column: Recording Controls */}
             <div className="space-y-4">

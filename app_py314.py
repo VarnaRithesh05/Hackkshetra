@@ -549,6 +549,169 @@ def auth_change_password():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/class_stats', methods=['GET'])
+def get_class_stats():
+    """
+    Get overall class statistics.
+    Uses aggregation pipeline to:
+    1. Sort by created_at descending
+    2. Group by student_name to get most recent report per student
+    3. Calculate total students, avg WCPM, and avg accuracy across class
+    """
+    try:
+        pipeline = [
+            # Step 1: Sort by created_at descending to prioritize recent reports
+            {"$sort": {"created_at": -1}},
+            
+            # Step 2: Group by student_name, get first (most recent) report's wcpm and accuracy
+            {"$group": {
+                "_id": "$student_name",
+                "wcpm": {"$first": "$wcpm"},
+                "accuracy_percent": {"$first": "$accuracy_percent"}
+            }},
+            
+            # Step 3: Calculate class-level statistics
+            {"$group": {
+                "_id": None,
+                "totalStudents": {"$sum": 1},
+                "avgWcpm": {"$avg": "$wcpm"},
+                "avgAccuracy": {"$avg": "$accuracy_percent"}
+            }}
+        ]
+        
+        result = list(reports_collection.aggregate(pipeline))
+        
+        if result:
+            stats = result[0]
+            # Round averages to 2 decimal places
+            stats['avgWcpm'] = round(stats.get('avgWcpm', 0), 2)
+            stats['avgAccuracy'] = round(stats.get('avgAccuracy', 0), 2)
+            stats['totalStudents'] = stats.get('totalStudents', 0)
+            return jsonify(stats)
+        else:
+            # No data yet
+            return jsonify({
+                "totalStudents": 0,
+                "avgWcpm": 0,
+                "avgAccuracy": 0
+            })
+    except Exception as e:
+        print(f"ERROR in get_class_stats: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/at_risk_students', methods=['GET'])
+def get_at_risk_students():
+    """
+    Get students at risk of reading difficulties.
+    Returns top 5 students with lowest accuracy (below 90%).
+    Uses aggregation pipeline to get most recent report per student.
+    """
+    try:
+        pipeline = [
+            # Step 1: Sort by created_at descending (most recent first)
+            {"$sort": {"created_at": -1}},
+            
+            # Step 2: Group by student_name, get first (most recent) report
+            {"$group": {
+                "_id": "$student_name",
+                "student_name": {"$first": "$student_name"},
+                "accuracy_percent": {"$first": "$accuracy_percent"},
+                "wcpm": {"$first": "$wcpm"},
+                "prosody_score": {"$first": "$prosody_score"},
+                "created_at": {"$first": "$created_at"}
+            }},
+            
+            # Step 3: Match reports with accuracy < 90
+            {"$match": {"accuracy_percent": {"$lt": 90}}},
+            
+            # Step 4: Sort by accuracy ascending (lowest first)
+            {"$sort": {"accuracy_percent": 1}},
+            
+            # Step 5: Limit to 5 results
+            {"$limit": 5}
+        ]
+        
+        result = list(reports_collection.aggregate(pipeline))
+        
+        # Convert ObjectId to string for JSON serialization
+        for student in result:
+            if "_id" in student:
+                student["_id"] = str(student["_id"])
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"ERROR in get_at_risk_students: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/reading_groups', methods=['GET'])
+def get_reading_groups():
+    """
+    Classify students into reading groups based on their latest accuracy score.
+    Uses aggregation pipeline to get the most recent report for each student,
+    then groups them into intervention, instructional, and independent groups.
+    """
+    try:
+        # Aggregation pipeline: get latest report per student
+        pipeline = [
+            # Step 1: Sort by created_at descending to prioritize recent reports
+            {"$sort": {"created_at": -1}},
+            
+            # Step 2: Group by student_name, get first (most recent) document
+            {"$group": {
+                "_id": "$student_name",
+                "student_name": {"$first": "$student_name"},
+                "accuracy_percent": {"$first": "$accuracy_percent"},
+                "wcpm": {"$first": "$wcpm"},
+                "prosody_score": {"$first": "$prosody_score"},
+                "created_at": {"$first": "$created_at"}
+            }}
+        ]
+        
+        latest_reports = list(reports_collection.aggregate(pipeline))
+        
+        # Initialize reading groups
+        intervention_group = []      # accuracy < 90
+        instructional_group = []     # 90 <= accuracy < 95
+        independent_group = []       # accuracy >= 95
+        
+        # Classify each student into a reading group
+        for report in latest_reports:
+            student_data = {
+                "student_name": report.get("student_name", "Unknown"),
+                "accuracy_percent": report.get("accuracy_percent", 0),
+                "wcpm": report.get("wcpm", 0),
+                "prosody_score": report.get("prosody_score", "N/A")
+            }
+            
+            accuracy = report.get("accuracy_percent", 0)
+            
+            if accuracy < 90:
+                intervention_group.append(student_data)
+            elif accuracy < 95:
+                instructional_group.append(student_data)
+            else:
+                independent_group.append(student_data)
+        
+        # Sort each group by accuracy (ascending for intervention, descending for independent)
+        intervention_group.sort(key=lambda x: x["accuracy_percent"])
+        instructional_group.sort(key=lambda x: x["accuracy_percent"])
+        independent_group.sort(key=lambda x: x["accuracy_percent"], reverse=True)
+        
+        return jsonify({
+            "intervention": intervention_group,
+            "instructional": instructional_group,
+            "independent": independent_group
+        })
+    except Exception as e:
+        print(f"ERROR in get_reading_groups: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/')
 def serve():
     """Serve the React app"""
