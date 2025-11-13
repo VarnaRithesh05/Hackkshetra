@@ -619,6 +619,20 @@ function App() {
         timeout: 300000, // 5 minute timeout for AI processing
       });
       setReport(response.data);
+      
+      // Check if student should retry current passage (poor performance)
+      if (response.data.retry_current_passage) {
+        // Keep the same passage loaded - don't change it
+        console.log(`🔄 Student should retry current passage: ${response.data.retry_current_passage.title}`);
+        console.log(`   Reason: ${response.data.retry_current_passage.reason}`);
+      }
+      // Auto-load next recommended passage if available (good performance)
+      else if (response.data.next_recommended_passage) {
+        const nextPassage = response.data.next_recommended_passage;
+        setSelectedPassageId(nextPassage._id);
+        console.log(`✅ Auto-loaded next passage: ${nextPassage.title} (${nextPassage.strategy})`);
+      }
+      
       audioChunksRef.current = [];
       setHasRecording(false);
       setRecordingTime(0);
@@ -1017,6 +1031,51 @@ function App() {
               {/* Results Display */}
               {report && (
                 <div className="space-y-4">
+                  {/* Retry Current Passage Notification (Poor Performance) */}
+                  {report.retry_current_passage && (
+                    <div className={`${darkMode ? 'bg-gradient-to-r from-orange-900 to-red-900 border-orange-600' : 'bg-gradient-to-r from-orange-50 to-red-50 border-orange-300'} border-2 rounded-2xl p-4 shadow-md`}>
+                      <div className="flex items-start gap-3">
+                        <span className="text-3xl">🔄</span>
+                        <div>
+                          <h3 className={`font-bold text-lg ${darkMode ? 'text-orange-300' : 'text-orange-800'}`}>
+                            Let's Try This Again!
+                          </h3>
+                          <p className={`text-sm ${darkMode ? 'text-orange-200' : 'text-orange-700'} mt-1`}>
+                            Practice makes perfect! <strong>{report.retry_current_passage.title}</strong>
+                          </p>
+                          <p className={`text-xs ${darkMode ? 'text-orange-300' : 'text-orange-600'} mt-2`}>
+                            💡 {report.retry_current_passage.reason}
+                          </p>
+                          <p className={`text-xs ${darkMode ? 'text-orange-400' : 'text-orange-700'} mt-2 font-semibold`}>
+                            📖 Take a deep breath, read slowly, and try again!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Next Passage Notification (Good Performance) */}
+                  {report.next_recommended_passage && !report.retry_current_passage && (
+                    <div className={`${darkMode ? 'bg-gradient-to-r from-green-900 to-emerald-900 border-green-600' : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300'} border-2 rounded-2xl p-4 shadow-md animate-pulse`}>
+                      <div className="flex items-start gap-3">
+                        <span className="text-3xl">📚</span>
+                        <div>
+                          <h3 className={`font-bold text-lg ${darkMode ? 'text-green-300' : 'text-green-800'}`}>
+                            Great Job! Next Passage Ready!
+                          </h3>
+                          <p className={`text-sm ${darkMode ? 'text-green-200' : 'text-green-700'} mt-1`}>
+                            <strong>{report.next_recommended_passage.title}</strong> ({report.next_recommended_passage.level})
+                          </p>
+                          <p className={`text-xs ${darkMode ? 'text-green-300' : 'text-green-600'} mt-2 italic`}>
+                            {report.next_recommended_passage.strategy === 'targeted_practice' && '🎯 This passage focuses on words you found challenging!'}
+                            {report.next_recommended_passage.strategy === 'level_rotation' && '📖 Next passage in your current level'}
+                            {report.next_recommended_passage.strategy === 'level_reset' && '🔄 Starting a new cycle of passages'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <h2 className={`text-2xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center transition-colors`}>
                     <span className="text-3xl mr-2">🎉</span>
                     Reading Results
@@ -1108,13 +1167,18 @@ function App() {
                           <div>
                             <p className="font-bold text-blue-800 mb-2">What does this mean?</p>
                             <p className="text-gray-700 text-sm leading-relaxed">
-                              {report.punctuation_score >= 80 
-                                ? "🌟 Excellent! The student paused naturally at commas (,) and periods (.). This shows they understand the story!"
-                                : report.punctuation_score >= 60
-                                ? "✅ Good! The student paused at most punctuation marks. They're reading with understanding."
-                                : report.punctuation_score >= 40
-                                ? "📖 Developing. The student is learning to pause at punctuation. Practice will help!"
-                                : "💡 Needs Practice. The student read without pausing at commas or periods. They may not understand the story yet."}
+                              {report.punctuation_details?.feedback || (
+                                report.punctuation_score >= 80 
+                                  ? "🌟 Excellent! Reading with great expression! The student paused naturally at periods (.) to show understanding."
+                                  : report.punctuation_score >= 60
+                                  ? "👍 Good job! Try to pause at periods. Most punctuation marks were followed by pauses."
+                                  : report.punctuation_score >= 40
+                                  ? "📖 Keep practicing! Pause at dots (.) when reading. They're learning to read with expression."
+                                  : "� Let's practice pausing at periods together! This will help them understand the story better."
+                              )}
+                            </p>
+                            <p className="text-gray-600 text-xs mt-2 italic">
+                              🎯 For young readers: Periods (.) are most important! Commas (,) are optional at this age.
                             </p>
                           </div>
                         </div>

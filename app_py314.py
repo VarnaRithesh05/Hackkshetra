@@ -180,9 +180,10 @@ def create_word_comparison_html(ground_truth_words, asr_words, sequence_matcher)
 def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     """
     Calculate punctuation awareness score by analyzing pauses at punctuation marks.
+    Designed for students below age 12 with age-appropriate expectations.
     
     This measures if the student is reading for meaning by checking if they pause
-    appropriately at commas and periods.
+    appropriately at periods (most important) and commas.
     
     Args:
         word_chunks: List of word dictionaries with text and timestamp tuples
@@ -191,7 +192,7 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     Returns:
         dict with punctuation_score, matched_pauses, total_expected_pauses, and details
     """
-    print("⏸️  Analyzing Punctuation Awareness...")
+    print("⏸️  Analyzing Punctuation Awareness (Age-Appropriate)...")
     
     if not word_chunks or len(word_chunks) < 2:
         print("⚠️  Not enough word chunks for punctuation analysis")
@@ -203,8 +204,9 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
             "details": []
         }
     
-    # Constants
-    PAUSE_THRESHOLD = 0.3  # seconds - meaningful pause
+    # Constants - More lenient for young readers
+    PERIOD_PAUSE_THRESHOLD = 0.25  # seconds - shorter threshold for periods (easier to detect)
+    COMMA_PAUSE_THRESHOLD = 0.20   # seconds - very gentle for commas (optional for young kids)
     
     # Build a map of punctuation positions by analyzing words directly
     ground_truth_words = ground_truth_text.lower().split()
@@ -213,15 +215,17 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     for idx, word in enumerate(ground_truth_words):
         # Check if word ends with punctuation
         if word and word[-1] in ['.', ',', '!', '?', ';', ':']:
+            is_major = word[-1] in ['.', '!', '?']  # Sentence-ending punctuation
             punctuation_positions.append({
                 'char': word[-1],
                 'word_index': idx,
                 'word': word,
-                'is_major': word[-1] in ['.', '!', '?']  # Period-like punctuation
+                'is_major': is_major,
+                'weight': 2.0 if is_major else 1.0  # Periods worth more than commas for young readers
             })
     
     print(f"📍 Found {len(punctuation_positions)} punctuation marks in passage")
-    print(f"   Punctuation locations: {[f'{p['word']}(idx:{p['word_index']})' for p in punctuation_positions[:5]]}")
+    print(f"   Periods/Major: {sum(1 for p in punctuation_positions if p['is_major'])}, Commas/Minor: {sum(1 for p in punctuation_positions if not p['is_major'])}")
     
     # If no punctuation found, return zero score with message
     if len(punctuation_positions) == 0:
@@ -237,11 +241,11 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     
     # Analyze pauses between words and match with punctuation
     pauses = []
-    matched_pauses = 0
+    matched_score = 0  # Weighted score
     total_significant_pauses = 0
     
-    # Create a set of punctuation word indices for faster lookup
-    punct_word_indices = {p['word_index'] for p in punctuation_positions}
+    # Create a dictionary of punctuation word indices for faster lookup
+    punct_dict = {p['word_index']: p for p in punctuation_positions}
     
     for i in range(len(word_chunks) - 1):
         current_word = word_chunks[i]
@@ -259,52 +263,71 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
         
         pause_duration = next_start - current_end
         
-        # Only consider significant pauses
-        if pause_duration >= PAUSE_THRESHOLD:
-            total_significant_pauses += 1
+        # Check if current word has punctuation
+        expected_punct = punct_dict.get(i)
+        
+        if expected_punct:
+            # This word should have a pause - use appropriate threshold
+            threshold = PERIOD_PAUSE_THRESHOLD if expected_punct['is_major'] else COMMA_PAUSE_THRESHOLD
             
-            # Check if current word (i) has punctuation
-            # We check current word index against punctuation positions
-            has_punctuation = i in punct_word_indices
-            expected_punct = None
-            
-            if has_punctuation:
-                # Find the punctuation details
-                for punct in punctuation_positions:
-                    if punct['word_index'] == i:
-                        expected_punct = punct
-                        break
-            
-            pause_info = {
-                'word_index': i,
-                'word': current_word.get('text', ''),
-                'pause_duration': round(pause_duration, 2),
-                'has_punctuation': has_punctuation,
-                'punctuation': expected_punct['char'] if expected_punct else None
-            }
-            
-            if has_punctuation:
-                matched_pauses += 1
-                pause_info['matched'] = True
+            if pause_duration >= threshold:
+                # Good! Student paused at punctuation
+                matched_score += expected_punct['weight']
+                pause_info = {
+                    'word_index': i,
+                    'word': current_word.get('text', ''),
+                    'pause_duration': round(pause_duration, 2),
+                    'has_punctuation': True,
+                    'punctuation': expected_punct['char'],
+                    'matched': True,
+                    'is_major': expected_punct['is_major']
+                }
+                pauses.append(pause_info)
             else:
-                pause_info['matched'] = False
-            
-            pauses.append(pause_info)
+                # Missed pause - especially important if it's a period
+                pause_info = {
+                    'word_index': i,
+                    'word': current_word.get('text', ''),
+                    'pause_duration': round(pause_duration, 2),
+                    'has_punctuation': True,
+                    'punctuation': expected_punct['char'],
+                    'matched': False,
+                    'is_major': expected_punct['is_major']
+                }
+                pauses.append(pause_info)
+        
+        # Count all significant pauses (for info only)
+        if pause_duration >= COMMA_PAUSE_THRESHOLD:
+            total_significant_pauses += 1
     
-    # Calculate score based on total expected punctuation marks
-    total_expected = len(punctuation_positions)
+    # Calculate weighted score
+    # Total possible score = sum of all weights
+    total_possible_score = sum(p['weight'] for p in punctuation_positions)
     punctuation_score = 0
-    if total_expected > 0:
-        punctuation_score = (matched_pauses / total_expected) * 100
+    matched_count = len([p for p in pauses if p.get('matched', False)])
     
-    print(f"✅ Punctuation Score: {matched_pauses}/{total_expected} expected pauses matched = {round(punctuation_score, 1)}%")
+    if total_possible_score > 0:
+        punctuation_score = (matched_score / total_possible_score) * 100
+    
+    # Generate age-appropriate feedback
+    if punctuation_score >= 80:
+        feedback = "Excellent! Reading with great expression! 🌟"
+    elif punctuation_score >= 60:
+        feedback = "Good job! Try to pause at periods. 👍"
+    elif punctuation_score >= 40:
+        feedback = "Keep practicing! Pause at dots (.) when reading. 📖"
+    else:
+        feedback = "Let's practice pausing at periods together! 💪"
+    
+    print(f"✅ Punctuation Score: {matched_count}/{len(punctuation_positions)} pauses = {round(punctuation_score, 1)}% - {feedback}")
     
     return {
         "punctuation_score": round(punctuation_score, 1),
-        "matched_pauses": matched_pauses,
-        "total_expected_pauses": total_expected,
+        "matched_pauses": matched_count,
+        "total_expected_pauses": len(punctuation_positions),
         "total_pauses_detected": total_significant_pauses,
-        "pause_locations": pauses[:10]  # Send first 10 for debugging
+        "pause_locations": pauses[:10],  # Send first 10 for debugging
+        "feedback": feedback  # Age-appropriate encouragement
     }
 
 
@@ -511,38 +534,183 @@ def handle_analysis():
         
         print(f"✓ Report saved with ID: {report['_id']}")
         
-        # Update student level based on performance
+        # Update student progress: track passages, difficult words, and level
         if student_name:
             try:
                 accuracy = float(report.get('accuracy_percent', 0))
-                fluency = float(report.get('prosody_score', 0))
+                fluency = float(report.get('wcpm', 0))  # Use WCPM (numeric) instead of prosody_score (text)
                 
-                # Get current student level
+                # Get current student
                 student = students_collection.find_one({"name": student_name})
                 if student:
                     current_level = int(student.get('current_level', 1))
+                    attempted_passages = student.get('attempted_passages', [])
+                    difficult_words = student.get('difficult_words', {})
                     
-                    # Level up if both accuracy and fluency are good (>=90%)
-                    if accuracy >= 90 and fluency >= 80:
-                        new_level = min(current_level + 1, 4)  # Max level 4
-                        if new_level != current_level:
-                            students_collection.update_one(
-                                {"name": student_name},
-                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
-                            )
-                            print(f"📈 Student level increased: {current_level} → {new_level}")
+                    # Track this passage as attempted
+                    passage_id_str = str(passage_id)
+                    if passage_id_str not in attempted_passages:
+                        attempted_passages.append(passage_id_str)
                     
-                    # Level down if performance is poor (accuracy <70% or fluency <50%)
-                    elif (accuracy < 70 or fluency < 50) and current_level > 1:
-                        new_level = max(current_level - 1, 1)  # Min level 1
-                        if new_level != current_level:
-                            students_collection.update_one(
-                                {"name": student_name},
-                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
-                            )
-                            print(f"📉 Student level decreased: {current_level} → {new_level}")
+                    # Extract and track difficult words from miscue analysis
+                    miscues = report.get('miscues', [])
+                    for miscue in miscues:
+                        if miscue[0] in ['substitution', 'omission']:  # Focus on word-level errors
+                            expected_word = miscue[2].lower().strip('.,!?;:')
+                            if expected_word:
+                                difficult_words[expected_word] = difficult_words.get(expected_word, 0) + 1
+                    
+                    # Update student record
+                    update_doc = {
+                        "attempted_passages": attempted_passages,
+                        "difficult_words": difficult_words,
+                        "updated_at": datetime.now()
+                    }
+                    
+                    # Check if student completed all passages at current level
+                    total_passages_at_level = passages_collection.count_documents({"level": f"Level {current_level}"})
+                    
+                    # Get all passage IDs at current level
+                    level_passage_ids = [str(p['_id']) for p in passages_collection.find({"level": f"Level {current_level}"}, {"_id": 1})]
+                    
+                    # Count how many of these passages the student has attempted
+                    completed_passages_at_level = len([p for p in attempted_passages if p in level_passage_ids])
+                    
+                    # Level progression logic - only after completing all passages at level
+                    if completed_passages_at_level >= total_passages_at_level:
+                        # Get ObjectIds of level passages that student attempted
+                        attempted_level_passage_ids = [ObjectId(p) for p in attempted_passages if p in level_passage_ids]
+                        
+                        # Calculate average performance for all passages at this level
+                        level_reports = list(reports_collection.find({
+                            "student_name": student_name,
+                            "passage_id": {"$in": attempted_level_passage_ids}
+                        }))
+                        
+                        if level_reports:
+                            avg_accuracy = sum(float(r.get('accuracy_percent', 0)) for r in level_reports) / len(level_reports)
+                            avg_fluency = sum(float(r.get('wcpm', 0)) for r in level_reports) / len(level_reports)  # Use WCPM
+                            
+                            # Level up if average performance is good
+                            if avg_accuracy >= 90 and avg_fluency >= 80 and current_level < 4:
+                                new_level = current_level + 1
+                                update_doc["current_level"] = new_level
+                                update_doc["attempted_passages"] = []  # Reset for new level
+                                print(f"📈 Student leveled up: {current_level} → {new_level} (Avg Acc: {avg_accuracy:.1f}%, Avg Flu: {avg_fluency:.1f}%)")
+                            else:
+                                # Stay at current level, reset passages to practice again
+                                update_doc["attempted_passages"] = []
+                                print(f"🔄 Student repeats Level {current_level} (Avg Acc: {avg_accuracy:.1f}%, Avg Flu: {avg_fluency:.1f}%)")
+                    
+                    # Update student document
+                    students_collection.update_one(
+                        {"name": student_name},
+                        {"$set": update_doc}
+                    )
+                    
+                    print(f"� Progress: {completed_passages_at_level}/{total_passages_at_level} passages at Level {current_level}")
+                    if difficult_words:
+                        top_3 = sorted(difficult_words.items(), key=lambda x: x[1], reverse=True)[:3]
+                        print(f"🎯 Top difficult words: {[f'{w}({c}x)' for w, c in top_3]}")
+                        
             except Exception as e:
-                print(f"⚠ Warning: Could not update student level: {e}")
+                print(f"⚠ Warning: Could not update student progress: {e}")
+                import traceback; traceback.print_exc()
+        
+        # Get next recommended passage for the student
+        next_passage = None
+        should_retry_current = False
+        
+        # Check if student should retry current passage (poor performance)
+        accuracy = float(report.get('accuracy_percent', 0))
+        fluency = float(report.get('wcpm', 0))
+        
+        # Thresholds for moving to next passage
+        MIN_ACCURACY_TO_ADVANCE = 85.0  # Need at least 85% accuracy
+        MIN_WCPM_TO_ADVANCE = 60.0      # Need at least 60 WCPM
+        
+        if accuracy < MIN_ACCURACY_TO_ADVANCE or fluency < MIN_WCPM_TO_ADVANCE:
+            should_retry_current = True
+            print(f"🔄 Performance below threshold - Recommending retry of current passage")
+            print(f"   Accuracy: {accuracy:.1f}% (need {MIN_ACCURACY_TO_ADVANCE}%), WCPM: {fluency:.1f} (need {MIN_WCPM_TO_ADVANCE})")
+        
+        if student_name and not should_retry_current:
+            try:
+                # Refresh student data after updates
+                updated_student = students_collection.find_one({"name": student_name})
+                if updated_student:
+                    current_level = updated_student.get('current_level', 1)
+                    attempted_passages = updated_student.get('attempted_passages', [])
+                    difficult_words = updated_student.get('difficult_words', {})
+                    
+                    # Strategy 1: Targeted practice with difficult words
+                    if difficult_words:
+                        top_difficult_words = sorted(difficult_words.items(), key=lambda x: x[1], reverse=True)[:5]
+                        difficult_word_list = [word for word, count in top_difficult_words]
+                        
+                        all_level_passages = list(passages_collection.find({"level": f"Level {current_level}"}))
+                        best_passage = None
+                        max_matches = 0
+                        
+                        for p in all_level_passages:
+                            text_lower = p.get('text', '').lower()
+                            matches = sum(1 for word in difficult_word_list if word.lower() in text_lower)
+                            if matches > max_matches and str(p['_id']) not in attempted_passages:
+                                max_matches = matches
+                                best_passage = p
+                        
+                        if best_passage and max_matches > 0:
+                            next_passage = {
+                                "_id": str(best_passage['_id']),
+                                "title": best_passage.get('title'),
+                                "text": best_passage.get('text'),
+                                "level": best_passage.get('level'),
+                                "strategy": "targeted_practice"
+                            }
+                    
+                    # Strategy 2: Next passage in level rotation
+                    if not next_passage:
+                        all_level_passages = list(passages_collection.find({"level": f"Level {current_level}"}))
+                        for passage in all_level_passages:
+                            if str(passage['_id']) not in attempted_passages:
+                                next_passage = {
+                                    "_id": str(passage['_id']),
+                                    "title": passage.get('title'),
+                                    "text": passage.get('text'),
+                                    "level": passage.get('level'),
+                                    "strategy": "level_rotation"
+                                }
+                                break
+                    
+                    # Strategy 3: Reset if all passages completed
+                    if not next_passage and all_level_passages:
+                        passage = all_level_passages[0]
+                        next_passage = {
+                            "_id": str(passage['_id']),
+                            "title": passage.get('title'),
+                            "text": passage.get('text'),
+                            "level": passage.get('level'),
+                            "strategy": "level_reset"
+                        }
+            except Exception as next_err:
+                print(f"⚠️ Could not fetch next passage: {next_err}")
+        
+        # If student should retry, send back the current passage with retry flag
+        if should_retry_current:
+            current_passage = passages_collection.find_one({"_id": ObjectId(passage_id)})
+            if current_passage:
+                report['retry_current_passage'] = {
+                    "_id": str(current_passage['_id']),
+                    "title": current_passage.get('title'),
+                    "text": current_passage.get('text'),
+                    "level": current_passage.get('level'),
+                    "reason": f"Try to improve your accuracy (currently {accuracy:.1f}%) and speed (currently {fluency:.1f} WCPM)"
+                }
+                print(f"🔄 Recommending retry: {current_passage.get('title')}")
+        # Add next passage to response (only if not retrying)
+        elif next_passage:
+            report['next_recommended_passage'] = next_passage
+            print(f"📚 Next passage ready: {next_passage['title']} ({next_passage['strategy']})")
         
         print("="*60)
         print("✅ ANALYSIS COMPLETE - SENDING RESPONSE")
@@ -1012,12 +1180,24 @@ def upload_students():
             if not student_name:
                 continue
             
+            # Map grade to initial level (Grade 1→Level 1, Grade 2→Level 2, etc.)
+            initial_level = 1  # Default
+            if grade:
+                try:
+                    # Extract numeric grade (handles "Grade 3", "3", "3rd", etc.)
+                    grade_num = int(''.join(filter(str.isdigit, grade)))
+                    initial_level = min(max(grade_num, 1), 4)  # Clamp between 1-4
+                except:
+                    initial_level = 1
+            
             # Create student document
             student_doc = {
                 "name": student_name,
                 "grade": grade,
                 "teacher_id": teacher_id,
-                "current_level": 1,  # Start at level 1
+                "current_level": initial_level,
+                "attempted_passages": [],  # Track which passages student has tried
+                "difficult_words": {},  # Track words student struggles with: {word: count}
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             }
@@ -1082,28 +1262,88 @@ def get_students():
 
 @app.route('/api/students/<student_name>/recommended-passage', methods=['GET'])
 def get_recommended_passage(student_name):
-    """Get recommended passage for a student based on their current level"""
+    """Get recommended passage for a student - cycles through level passages or targets weak words"""
     try:
         # Find student
         student = students_collection.find_one({"name": student_name})
         
         if not student:
-            # If student not found, return level 1 passage
+            # If student not found, return first level 1 passage
             passage = passages_collection.find_one({"level": "Level 1"})
-        else:
-            current_level = student.get('current_level', 1)
-            # Get passage for current level
-            passage = passages_collection.find_one({"level": f"Level {current_level}"})
+            if passage:
+                passage['_id'] = str(passage['_id'])
+            return jsonify({
+                "passage": passage,
+                "current_level": 1,
+                "strategy": "default"
+            })
+        
+        current_level = student.get('current_level', 1)
+        attempted_passages = student.get('attempted_passages', [])
+        difficult_words = student.get('difficult_words', {})
+        
+        # Strategy 1: If student has difficult words, find passage containing those words
+        if difficult_words:
+            top_difficult_words = sorted(difficult_words.items(), key=lambda x: x[1], reverse=True)[:5]
+            difficult_word_list = [word for word, count in top_difficult_words]
             
-            # If no passage found for level, default to level 1
-            if not passage:
-                passage = passages_collection.find_one({"level": "Level 1"})
+            # Find a passage at current level that contains these difficult words
+            all_level_passages = list(passages_collection.find({"level": f"Level {current_level}"}))
+            
+            best_passage = None
+            max_matches = 0
+            
+            for p in all_level_passages:
+                text_lower = p.get('text', '').lower()
+                matches = sum(1 for word in difficult_word_list if word.lower() in text_lower)
+                if matches > max_matches and str(p['_id']) not in attempted_passages:
+                    max_matches = matches
+                    best_passage = p
+            
+            if best_passage and max_matches > 0:
+                best_passage['_id'] = str(best_passage['_id'])
+                return jsonify({
+                    "passage": best_passage,
+                    "current_level": current_level,
+                    "strategy": "targeted_practice",
+                    "targeting_words": difficult_word_list[:3]
+                })
+        
+        # Strategy 2: Cycle through passages at current level
+        all_level_passages = list(passages_collection.find({"level": f"Level {current_level}"}))
+        
+        # Find first unattempted passage at this level
+        for passage in all_level_passages:
+            if str(passage['_id']) not in attempted_passages:
+                passage['_id'] = str(passage['_id'])
+                return jsonify({
+                    "passage": passage,
+                    "current_level": current_level,
+                    "strategy": "level_rotation",
+                    "progress": f"{len(attempted_passages)}/{len(all_level_passages)}"
+                })
+        
+        # If all passages at level attempted, reset and start over
+        if all_level_passages:
+            passage = all_level_passages[0]
+            passage['_id'] = str(passage['_id'])
+            return jsonify({
+                "passage": passage,
+                "current_level": current_level,
+                "strategy": "level_reset"
+            })
+        
+        # Fallback: Get any passage
+        passage = passages_collection.find_one({"level": f"Level {current_level}"})
+        if not passage:
+            passage = passages_collection.find_one({"level": "Level 1"})
         
         if passage:
             passage['_id'] = str(passage['_id'])
             return jsonify({
                 "passage": passage,
-                "current_level": student.get('current_level', 1) if student else 1
+                "current_level": current_level,
+                "strategy": "fallback"
             })
         else:
             return jsonify({"error": "No passages found"}), 404
@@ -1154,7 +1394,7 @@ def get_student_history(student_name):
         
         # Convert all values to float to handle mixed types from database
         pronunciation_scores = [float(r.get('accuracy_percent', 0)) for r in reports]
-        fluency_scores = [float(r.get('prosody_score', 0)) for r in reports]
+        fluency_scores = [float(r.get('wcpm', 0)) for r in reports]  # Use WCPM (numeric)
         wcpm_scores = [float(r.get('wcpm', 0)) for r in reports]
         punctuation_scores = [float(r.get('punctuation_details', {}).get('punctuation_score', 0)) for r in reports]
         
