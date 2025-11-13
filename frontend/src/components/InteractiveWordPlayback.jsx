@@ -86,10 +86,20 @@ const WordTooltip = ({ word, wordData, position }) => {
   );
 };
 
-const InteractiveWordPlayback = ({ wordAnalysis, passageText, audioPath }) => {
+const InteractiveWordPlayback = ({ wordAnalysis, passageText, audioPath, opcodes, asrWords }) => {
   const [hoveredWord, setHoveredWord] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState(null);
   const [playingWord, setPlayingWord] = useState(null);
+  
+  // Extract inserted words from opcodes
+  const insertedWords = [];
+  if (opcodes && asrWords) {
+    opcodes.forEach(([tag, i1, i2, j1, j2]) => {
+      if (tag === 'insert') {
+        insertedWords.push(...asrWords.slice(j1, j2));
+      }
+    });
+  }
 
   const playPronunciation = async (word) => {
     try {
@@ -173,6 +183,10 @@ const InteractiveWordPlayback = ({ wordAnalysis, passageText, audioPath }) => {
           <div className="w-4 h-4 rounded bg-gray-200 border-2 border-gray-400"></div>
           <span>Skipped</span>
         </div>
+        <div className="flex items-center space-x-1">
+          <div className="w-4 h-4 rounded bg-blue-200 border-2 border-blue-400"></div>
+          <span>Inserted (Extra)</span>
+        </div>
       </div>
 
       <p className="text-sm text-purple-600 mb-4 font-semibold">
@@ -204,6 +218,33 @@ const InteractiveWordPlayback = ({ wordAnalysis, passageText, audioPath }) => {
           wordData={hoveredWord} 
           position={tooltipPosition}
         />
+      )}
+
+      {/* Inserted Words Section */}
+      {insertedWords.length > 0 && (
+        <div className="mt-6 pt-4 border-t-2 border-purple-300">
+          <h3 className="text-lg font-bold text-blue-700 mb-3 flex items-center">
+            <span className="text-xl mr-2">🔵</span>
+            Extra Words (Not in passage)
+          </h3>
+          <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+            <p className="text-sm text-blue-800 mb-3 font-semibold">
+              These words were said by the student but weren't in the original passage:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {insertedWords.map((word, index) => (
+                <span
+                  key={index}
+                  onClick={(e) => handleWordClick(word, e)}
+                  className="inline-block px-3 py-2 bg-blue-200 hover:bg-blue-300 border-2 border-blue-400 text-blue-900 rounded-lg cursor-pointer font-semibold text-base transition-all transform hover:scale-105"
+                  title="Click to hear pronunciation"
+                >
+                  {word}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -10,6 +10,9 @@ import InteractiveWordPlayback from './components/InteractiveWordPlayback';
 import StudentTable from './components/StudentTable';
 import StudentDashboard from './components/StudentDashboard';
 import StudentUpload from './components/StudentUpload';
+import UploadPassage from './components/UploadPassage';
+import RealTimeFeedback from './components/RealTimeFeedback';
+import AdvancedAnalytics from './components/AdvancedAnalytics';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -199,126 +202,6 @@ const Alert = ({ type = 'info', message, onClose, darkMode }) => {
   );
 };
 
-// Interactive Word Highlighting Component
-const InteractivePassageHighlight = ({ groundTruthWords, asrWords, opcodes }) => {
-  const [hoveredWord, setHoveredWord] = useState(null);
-  
-  if (!groundTruthWords || !asrWords || !opcodes) {
-    return null;
-  }
-
-  // Create a map of word index to opcode info
-  const wordMap = {};
-  opcodes.forEach(([tag, i1, i2, j1, j2]) => {
-    for (let i = i1; i < i2; i++) {
-      wordMap[i] = {
-        tag,
-        originalWord: groundTruthWords[i],
-        spokenWord: tag === 'replace' && j1 < j2 ? asrWords[j1 + (i - i1)] : null,
-        isInsert: tag === 'insert',
-        j1, j2, i1, i2
-      };
-    }
-  });
-
-  const getWordStyle = (tag) => {
-    switch (tag) {
-      case 'equal':
-        return 'bg-green-100 text-green-800 border-green-300';
-      case 'delete':
-        return 'bg-red-100 text-red-800 line-through border-red-300';
-      case 'replace':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
-  const getIcon = (tag) => {
-    switch (tag) {
-      case 'equal':
-        return '✓';
-      case 'delete':
-        return '✗';
-      case 'replace':
-        return '⚠';
-      default:
-        return '';
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-inner border-2 border-indigo-200">
-      <div className="mb-4 flex gap-4 text-xs font-bold">
-        <div className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded"></span>
-          <span className="text-gray-600">Correct</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-red-100 border border-red-300 rounded"></span>
-          <span className="text-gray-600">Omitted</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></span>
-          <span className="text-gray-600">Substituted</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-blue-100 border border-blue-300 rounded"></span>
-          <span className="text-gray-600">Inserted</span>
-        </div>
-      </div>
-      
-      <div className="leading-relaxed text-lg">
-        {groundTruthWords.map((word, idx) => {
-          const info = wordMap[idx] || { tag: 'equal', originalWord: word };
-          const isHovered = hoveredWord === idx;
-          
-          return (
-            <span key={idx} className="inline-block mr-1 mb-1">
-              <span
-                className={`
-                  inline-flex items-center gap-1 px-2 py-1 rounded-lg border-2 font-medium
-                  transition-all duration-200 cursor-default
-                  ${getWordStyle(info.tag)}
-                  ${isHovered ? 'scale-110 shadow-lg z-10 relative' : ''}
-                `}
-                onMouseEnter={() => setHoveredWord(idx)}
-                onMouseLeave={() => setHoveredWord(null)}
-              >
-                <span className="text-xs opacity-70">{getIcon(info.tag)}</span>
-                <span>{word}</span>
-              </span>
-              
-              {/* Tooltip for replaced words */}
-              {isHovered && info.tag === 'replace' && info.spokenWord && (
-                <div className="absolute z-50 mt-1 bg-gray-800 text-white text-sm px-3 py-2 rounded-lg shadow-xl animate-fadeIn">
-                  <div className="font-bold text-yellow-300">Student said:</div>
-                  <div className="text-blue-200">"{info.spokenWord}"</div>
-                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-800 transform rotate-45"></div>
-                </div>
-              )}
-            </span>
-          );
-        })}
-      </div>
-      
-      {/* Show inserted words if any */}
-      {opcodes.some(([tag]) => tag === 'insert') && (
-        <div className="mt-6 pt-4 border-t-2 border-indigo-200">
-          <div className="text-sm font-bold text-indigo-700 mb-2">🔵 Extra Words (Not in passage):</div>
-          <div className="flex flex-wrap gap-2">
-            {opcodes.filter(([tag]) => tag === 'insert').map(([tag, i1, i2, j1, j2], idx) => (
-              <span key={idx} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg border-2 border-blue-300 font-medium text-sm">
-                {asrWords.slice(j1, j2).join(' ')}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 // === MAIN APP COMPONENT ===
 
 function App() {
@@ -429,6 +312,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
+  const [audioStream, setAudioStream] = useState(null);
   
   // Student information state
   const [studentName, setStudentName] = useState('');
@@ -438,6 +322,7 @@ function App() {
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showUploadPassage, setShowUploadPassage] = useState(false);
 
   // Student dashboard state
   const [students, setStudents] = useState([]);
@@ -449,23 +334,24 @@ function App() {
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
 
+  // Fetch passages function
+  const fetchPassages = async () => {
+    try {
+      console.log("Fetching passages from:", `${API_URL}/passages`);
+      const response = await axios.get(`${API_URL}/passages`);
+      console.log("Passages received:", response.data);
+      setPassages(response.data);
+      if (response.data.length > 0) {
+        setSelectedPassageId(response.data[0]._id);
+      }
+    } catch (err) {
+      console.error("Error fetching passages:", err);
+      setError("Could not load passages. Please ensure the backend server is running.");
+    }
+  };
+
   // Fetch passages and students on mount
   useEffect(() => {
-    const fetchPassages = async () => {
-      try {
-        console.log("Fetching passages from:", `${API_URL}/passages`);
-        const response = await axios.get(`${API_URL}/passages`);
-        console.log("Passages received:", response.data);
-        setPassages(response.data);
-        if (response.data.length > 0) {
-          setSelectedPassageId(response.data[0]._id);
-        }
-      } catch (err) {
-        console.error("Error fetching passages:", err);
-        setError("Could not load passages. Please ensure the backend server is running.");
-      }
-    };
-
     const fetchStudents = async () => {
       try {
         const teacherId = currentUser?.id || 'default_teacher';
@@ -570,6 +456,7 @@ function App() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream); // Store stream for real-time feedback
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       audioChunksRef.current = [];
       
@@ -596,6 +483,7 @@ function App() {
       setHasRecording(true);
     }
     setIsRecording(false);
+    setAudioStream(null);
   };
 
   // Analysis function
@@ -742,6 +630,15 @@ function App() {
               </span>
             </button>
             <button
+              onClick={() => setShowUploadPassage(true)}
+              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
+            >
+              <span className="flex items-center space-x-2">
+                <span className="text-xl">📖</span>
+                <span>Upload Passage</span>
+              </span>
+            </button>
+            <button
               onClick={() => {
                 setView('history');
                 fetchStudents();
@@ -759,17 +656,30 @@ function App() {
                 <span>All Students</span>
               </span>
             </button>
+            <button
+              onClick={() => setView('analytics')}
+              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
+                view === 'analytics'
+                  ? darkMode ? 'border-white text-white' : 'border-gray-900 text-gray-900'
+                  : darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+              }`}
+            >
+              <span className="flex items-center space-x-2">
+                <span className="text-xl">📈</span>
+                <span>Analytics</span>
+              </span>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
         {error && <Alert type="error" message={error} onClose={() => setError(null)} darkMode={darkMode} />}
 
         {view === 'dashboard' ? (
           <Dashboard setView={setView} darkMode={darkMode} />
         ) : view === 'record' ? (
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className={`grid gap-6 ${report ? 'lg:grid-cols-1' : 'lg:grid-cols-2'}`}>
             {/* Left Column: Recording Controls */}
             <div className="space-y-4">
               {/* Student Information Form */}
@@ -914,27 +824,34 @@ function App() {
                 )}
               </div>
 
-              {/* Recording Controls */}
-              <div className={`${darkMode ? 'bg-gradient-to-br from-pink-900 to-rose-900 border-pink-700' : 'bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
-                  <span className="text-2xl mr-2">🎙️</span>
+              {/* Real-time Feedback */}
+              <RealTimeFeedback 
+                isRecording={isRecording}
+                stream={audioStream}
+                darkMode={darkMode}
+              />
+
+              {/* Recording Controls - Compact */}
+              <div className={`${darkMode ? 'bg-gradient-to-br from-pink-900 to-rose-900 border-pink-700' : 'bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200'} rounded-2xl border p-4 shadow-md transition-colors`}>
+                <h2 className={`text-base font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-3 flex items-center`}>
+                  <span className="text-xl mr-2">🎙️</span>
                   Recording
                 </h2>
                 
-                {/* Timer Display */}
-                <div className={`flex justify-center items-center mb-4 p-6 ${darkMode ? 'bg-gray-800 border-pink-600' : 'bg-white border-pink-200'} rounded-xl border shadow-sm transition-colors`}>
+                {/* Timer Display - Compact */}
+                <div className={`flex justify-center items-center mb-3 p-4 ${darkMode ? 'bg-gray-800 border-pink-600' : 'bg-white border-pink-200'} rounded-xl border shadow-sm transition-colors`}>
                   <Timer seconds={recordingTime} darkMode={darkMode} />
                 </div>
 
-                {/* Control Buttons */}
+                {/* Control Buttons - Compact */}
                 <div className="space-y-2">
                   {!isRecording && !hasRecording && (
                     <button
                       onClick={startRecording}
                       disabled={isLoading}
-                      className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-3 px-6 rounded-full transition-all text-base`}
+                      className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-2.5 px-5 rounded-full transition-all text-sm`}
                     >
-                      <span className="text-xl">▶️</span>
+                      <span className="text-lg">▶️</span>
                       <span>START RECORDING</span>
                     </button>
                   )}
@@ -942,9 +859,9 @@ function App() {
                   {isRecording && (
                     <button
                       onClick={stopRecording}
-                      className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full transition-all animate-pulse text-base"
+                      className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-full transition-all animate-pulse text-sm"
                     >
-                      <span className="text-xl">⏹️</span>
+                      <span className="text-lg">⏹️</span>
                       <span>STOP</span>
                     </button>
                   )}
@@ -954,16 +871,16 @@ function App() {
                       <button
                         onClick={handleAnalyze}
                         disabled={isLoading}
-                        className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-3 px-6 rounded-full transition-all text-base`}
+                        className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-2.5 px-5 rounded-full transition-all text-sm`}
                       >
                         {isLoading ? (
                           <>
                             <Spinner />
-                            <span className="text-sm">Analyzing...</span>
+                            <span className="text-xs">Analyzing...</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-xl">✨</span>
+                            <span className="text-lg">✨</span>
                             <span>Analyze Reading</span>
                           </>
                         )}
@@ -971,7 +888,7 @@ function App() {
                       <button
                         onClick={resetRecording}
                         disabled={isLoading}
-                        className={`w-full flex items-center justify-center space-x-2 border-2 ${darkMode ? 'border-gray-600 hover:border-gray-500 text-gray-300' : 'border-gray-300 hover:border-gray-400 text-gray-700'} disabled:border-gray-200 font-semibold py-2 px-4 rounded-full transition-all text-sm`}
+                        className={`w-full flex items-center justify-center space-x-2 border-2 ${darkMode ? 'border-gray-600 hover:border-gray-500 text-gray-300' : 'border-gray-300 hover:border-gray-400 text-gray-700'} disabled:border-gray-200 font-semibold py-2 px-4 rounded-full transition-all text-xs`}
                       >
                         <span>🔄</span>
                         <span>Try Again</span>
@@ -990,29 +907,33 @@ function App() {
 
             {/* Right Column: Passage Display & Results */}
             <div className="space-y-4">
-              {/* Passage Display */}
-              {selectedPassage && (
-                <div className={`${darkMode ? 'bg-gradient-to-br from-amber-900 to-yellow-900 border-amber-700' : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
-                    <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm">{selectedPassage.level}</span>
+              {/* Passage Display - Compact */}
+              {selectedPassage && !report && (
+                <div className={`${darkMode ? 'bg-gradient-to-br from-amber-900 to-yellow-900 border-amber-700' : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'} rounded-2xl border p-5 shadow-md transition-colors sticky top-4`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className={`text-base font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
+                    <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold shadow-sm">{selectedPassage.level}</span>
                   </div>
-                  <div className={`${darkMode ? 'bg-gray-800 border-amber-600 text-gray-200' : 'bg-white border-amber-200 text-gray-800'} rounded-xl p-4 border shadow-sm transition-colors`}>
-                    <p className="leading-relaxed text-base">{selectedPassage.text}</p>
+                  <div className={`${darkMode ? 'bg-gray-800 border-amber-600 text-gray-200' : 'bg-white border-amber-200 text-gray-800'} rounded-xl p-3 border shadow-sm transition-colors max-h-96 overflow-y-auto`}>
+                    <p className="leading-relaxed text-sm">{selectedPassage.text}</p>
                   </div>
                 </div>
               )}
 
               {/* Results Display */}
               {report && (
-                <div className="space-y-4">
-                  <h2 className={`text-2xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center transition-colors`}>
-                    <span className="text-3xl mr-2">🎉</span>
+                <div className="space-y-6">
+                  <h2 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center transition-colors`}>
+                    <span className="text-4xl mr-3">🎉</span>
                     Reading Results
                   </h2>
                   
-                  {/* Key Metrics Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Two Column Layout for Results */}
+                  <div className="grid lg:grid-cols-3 gap-6">
+                    {/* Left Column: Metrics & Level Progress */}
+                    <div className="lg:col-span-2 space-y-4">
+                      {/* Key Metrics Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <MetricCard
                       icon={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                       label="Speed"
@@ -1050,62 +971,196 @@ function App() {
                     )}
                   </div>
 
-                  {/* Additional Details */}
-                  <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-700 border-gray-600' : 'bg-gradient-to-br from-slate-50 to-gray-50 border-gray-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                    <h3 className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-3 transition-colors`}>📝 Details</h3>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-2 rounded-lg transition-colors`}>
-                        <span className={`${darkMode ? 'text-purple-300' : 'text-gray-600'} block`}>Duration</span>
-                        <span className={`font-bold ${darkMode ? 'text-purple-100' : 'text-purple-700'} text-lg`}>{report.duration_seconds}s</span>
+                  {/* Level Progression Indicator - Compact */}
+                  {(() => {
+                    const accuracy = report.accuracy_percent || 0;
+                    const prosody = report.prosody_score || 0;
+                    const canLevelUp = accuracy >= 90 && prosody >= 80;
+                    const shouldLevelDown = accuracy < 70 || prosody < 50;
+                    const shouldRetry = !canLevelUp && !shouldLevelDown;
+                    
+                    return (
+                      <div className={`rounded-2xl border-2 p-4 shadow-lg ${
+                        canLevelUp 
+                          ? darkMode ? 'bg-gradient-to-br from-green-900 to-emerald-900 border-green-600' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
+                          : shouldLevelDown
+                          ? darkMode ? 'bg-gradient-to-br from-orange-900 to-red-900 border-orange-600' : 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-300'
+                          : darkMode ? 'bg-gradient-to-br from-blue-900 to-indigo-900 border-blue-600' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300'
+                      } transition-colors`}>
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-3xl">
+                            {canLevelUp ? '🎉' : shouldLevelDown ? '💪' : '🎯'}
+                          </span>
+                          <div className="flex-1">
+                            <h3 className={`text-xl font-black ${
+                              canLevelUp 
+                                ? darkMode ? 'text-green-200' : 'text-green-700'
+                                : shouldLevelDown
+                                ? darkMode ? 'text-orange-200' : 'text-orange-700'
+                                : darkMode ? 'text-blue-200' : 'text-blue-700'
+                            }`}>
+                              {canLevelUp ? 'Outstanding! Level Up!' : shouldLevelDown ? 'Keep Practicing!' : 'Good Progress!'}
+                            </h3>
+                            <p className={`text-xs font-semibold ${
+                              canLevelUp 
+                                ? darkMode ? 'text-green-300' : 'text-green-600'
+                                : shouldLevelDown
+                                ? darkMode ? 'text-orange-300' : 'text-orange-600'
+                                : darkMode ? 'text-blue-300' : 'text-blue-600'
+                            }`}>
+                              {canLevelUp 
+                                ? 'You\'ve mastered this level! Moving to next challenge...'
+                                : shouldLevelDown
+                                ? 'Let\'s try an easier passage to build confidence'
+                                : 'You\'re getting better! Try this level again to master it'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className={`rounded-xl p-3 ${
+                          canLevelUp
+                            ? darkMode ? 'bg-green-800/50' : 'bg-green-100'
+                            : shouldLevelDown
+                            ? darkMode ? 'bg-orange-800/50' : 'bg-orange-100'
+                            : darkMode ? 'bg-blue-800/50' : 'bg-blue-100'
+                        }`}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-[10px] font-bold uppercase tracking-wide ${
+                              canLevelUp 
+                                ? darkMode ? 'text-green-200' : 'text-green-700'
+                                : shouldLevelDown
+                                ? darkMode ? 'text-orange-200' : 'text-orange-700'
+                                : darkMode ? 'text-blue-200' : 'text-blue-700'
+                            }`}>
+                              Level Up Threshold
+                            </span>
+                            <span className={`text-[10px] font-bold ${
+                              canLevelUp 
+                                ? darkMode ? 'text-green-200' : 'text-green-700'
+                                : darkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                              Accuracy ≥90% AND Expression ≥80%
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-1.5 text-[11px]">
+                            <div className="flex items-center gap-2">
+                              <span className={`${accuracy >= 90 ? 'text-green-600' : darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {accuracy >= 90 ? '✓' : '○'}
+                              </span>
+                              <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                                Your Accuracy: <strong>{Math.round(accuracy)}%</strong> 
+                                {accuracy >= 90 && ' ✨'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`${prosody >= 80 ? 'text-green-600' : darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {prosody >= 80 ? '✓' : '○'}
+                              </span>
+                              <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                                Your Expression: <strong>{Math.round(prosody)}%</strong>
+                                {prosody >= 80 && ' ✨'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {!canLevelUp && !shouldLevelDown && (
+                            <div className={`mt-2.5 pt-2.5 border-t ${darkMode ? 'border-blue-700' : 'border-blue-200'}`}>
+                              <p className={`text-[10px] font-semibold ${darkMode ? 'text-blue-200' : 'text-blue-700'}`}>
+                                💡 Tip: Focus on reading clearly and with expression to reach the next level!
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-2 rounded-lg transition-colors`}>
-                        <span className={`${darkMode ? 'text-blue-300' : 'text-gray-600'} block`}>Correct Words</span>
-                        <span className={`font-bold ${darkMode ? 'text-blue-100' : 'text-blue-700'} text-lg`}>{report.correct_words}/{report.total_words}</span>
-                      </div>
-                    </div>
+                    );
+                  })()}
+
+                  {/* Additional Details - Removed duplicate, keeping only the one in right column */}
                   </div>
 
-                  {/* Interactive Word Playback */}
-                  {report.word_analysis && report.word_analysis.length > 0 && (
-                    <InteractiveWordPlayback 
-                      wordAnalysis={report.word_analysis}
-                      passageText={selectedPassage?.text || ''}
-                      audioPath={report.audio_path}
-                    />
-                  )}
+                    {/* Right Column: Details & Interactive Features */}
+                    <div className="space-y-4">
+                      {/* Additional Details */}
+                      <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-700 border-gray-600' : 'bg-gradient-to-br from-slate-50 to-gray-50 border-gray-200'} rounded-2xl border p-4 shadow-md transition-colors`}>
+                        <h3 className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 transition-colors`}>📝 Details</h3>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-2 rounded-lg transition-colors`}>
+                            <span className={`${darkMode ? 'text-purple-300' : 'text-gray-600'} block text-[10px]`}>Duration</span>
+                            <span className={`font-bold ${darkMode ? 'text-purple-100' : 'text-purple-700'} text-base`}>{report.duration_seconds}s</span>
+                          </div>
+                          <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-2 rounded-lg transition-colors`}>
+                            <span className={`${darkMode ? 'text-blue-300' : 'text-gray-600'} block text-[10px]`}>Correct Words</span>
+                            <span className={`font-bold ${darkMode ? 'text-blue-100' : 'text-blue-700'} text-base`}>{report.correct_words}/{report.total_words}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Punctuation Awareness - Pro-Level Metric */}
+                  {/* Punctuation Awareness - Horizontal Layout */}
                   {report.punctuation_score !== undefined && (
-                    <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl shadow-lg p-6 border-2 border-cyan-300">
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="text-3xl">⏸️</span>
-                        <h2 className="text-2xl font-black text-cyan-700">
-                          Reading with Pauses
-                          <span className="ml-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs px-2 py-1 rounded-full font-bold">
+                    <div className={`${darkMode ? 'bg-gradient-to-br from-cyan-900 to-blue-900 border-cyan-700' : 'bg-gradient-to-br from-cyan-50 to-blue-50 border-cyan-300'} rounded-2xl shadow-md p-4 border-2 transition-colors`}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">⏸️</span>
+                        <h2 className={`text-lg font-black ${darkMode ? 'text-cyan-200' : 'text-cyan-700'}`}>
+                          Reading Pauses
+                          <span className="ml-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                             PRO
                           </span>
                         </h2>
                       </div>
 
-                      {/* Simple Score Display */}
-                      <div className="bg-white rounded-xl p-6 mb-4 text-center border-2 border-cyan-200">
-                        <div className="text-6xl font-black mb-2" style={{
-                          background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent'
-                        }}>
-                          {Math.round(report.punctuation_score)}%
+                      {/* Horizontal Layout: Score and Breakdown */}
+                      <div className="grid md:grid-cols-2 gap-3 mb-3">
+                        {/* Score Display */}
+                        <div className={`${darkMode ? 'bg-gray-800 border-cyan-600' : 'bg-white border-cyan-200'} rounded-xl p-4 text-center border-2 transition-colors`}>
+                          <div className="text-4xl font-black mb-1" style={{
+                            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                          }}>
+                            {Math.round(report.punctuation_score)}%
+                          </div>
+                          <p className={`text-sm font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Pause Score</p>
                         </div>
-                        <p className="text-lg font-bold text-gray-700">Pause Score</p>
+
+                        {/* Visual Breakdown - Horizontal Grid */}
+                        <div className="grid grid-cols-3 gap-2">
+                          {/* Good Pauses */}
+                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'} transition-colors`}>
+                            <span className="text-lg mb-1">✓</span>
+                            <div className={`text-xl font-black ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                              {report.punctuation_details?.matched_pauses || 0}
+                            </div>
+                            <span className={`font-bold text-[10px] ${darkMode ? 'text-green-300' : 'text-green-700'}`}>Good</span>
+                          </div>
+                          
+                          {/* Missed Pauses */}
+                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'} transition-colors`}>
+                            <span className="text-lg mb-1">⚠️</span>
+                            <div className={`text-xl font-black ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                              {((report.punctuation_details?.total_expected_pauses || 0) - (report.punctuation_details?.matched_pauses || 0))}
+                            </div>
+                            <span className={`font-bold text-[10px] ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Missed</span>
+                          </div>
+
+                          {/* Total Expected */}
+                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} transition-colors`}>
+                            <span className="text-lg mb-1">🎯</span>
+                            <div className={`text-xl font-black ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                              {report.punctuation_details?.total_expected_pauses || 0}
+                            </div>
+                            <span className={`font-bold text-[10px] ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Total</span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* What This Means - Simple Explanation */}
-                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4 mb-4 border-2 border-blue-200">
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl">💡</span>
+                      {/* What This Means - Full Width */}
+                      <div className={`${darkMode ? 'bg-blue-900/50 border-blue-700' : 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'} rounded-xl p-3 mb-3 border-2 transition-colors`}>
+                        <div className="flex items-start gap-2">
+                          <span className="text-xl">💡</span>
                           <div>
-                            <p className="font-bold text-blue-800 mb-2">What does this mean?</p>
-                            <p className="text-gray-700 text-sm leading-relaxed">
+                            <p className={`font-bold text-xs mb-1.5 ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>What does this mean?</p>
+                            <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               {report.punctuation_score >= 80 
                                 ? "🌟 Excellent! The student paused naturally at commas (,) and periods (.). This shows they understand the story!"
                                 : report.punctuation_score >= 60
@@ -1118,91 +1173,49 @@ function App() {
                         </div>
                       </div>
 
-                      {/* Visual Breakdown - Show exactly what happened */}
-                      <div className="bg-white rounded-xl p-4 border-2 border-cyan-200">
-                        <p className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-                          <span>📊</span>
-                          What We Found:
-                        </p>
-                        
-                        <div className="space-y-3">
-                          {/* Good Pauses */}
-                          <div className="flex items-center justify-between bg-green-50 rounded-lg p-3 border-2 border-green-200">
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl">✓</span>
-                              <span className="font-bold text-green-700">Good Pauses</span>
-                            </div>
-                            <div className="text-2xl font-black text-green-600">
-                              {report.punctuation_details?.matched_pauses || 0}
-                            </div>
-                          </div>
-                          
-                          {/* Missed Pauses */}
-                          <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 border-2 border-orange-200">
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl">⚠️</span>
-                              <span className="font-bold text-orange-700">Missed Pauses</span>
-                            </div>
-                            <div className="text-2xl font-black text-orange-600">
-                              {((report.punctuation_details?.total_expected_pauses || 0) - (report.punctuation_details?.matched_pauses || 0))}
-                            </div>
-                          </div>
-
-                          {/* Total Expected */}
-                          <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 border-2 border-blue-200">
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl">🎯</span>
-                              <span className="font-bold text-blue-700">Total Punctuation Marks</span>
-                            </div>
-                            <div className="text-2xl font-black text-blue-600">
-                              {report.punctuation_details?.total_expected_pauses || 0}
-                            </div>
-                          </div>
-                        </div>
-
+                      {/* Bottom Row: Formula and Tip */}
+                      <div className="grid md:grid-cols-2 gap-3">
                         {/* Simple Formula */}
-                        <div className="mt-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border-2 border-purple-200">
-                          <p className="text-center text-sm text-gray-600">
-                            <span className="font-bold text-purple-700">Score = </span>
-                            <span className="text-green-600 font-bold">{report.punctuation_details?.matched_pauses || 0}</span>
+                        <div className={`rounded-lg p-3 border flex items-center justify-center ${darkMode ? 'bg-purple-900/30 border-purple-700' : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'} transition-colors`}>
+                          <p className={`text-center text-[11px] ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <span className={`font-bold ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Score = </span>
+                            <span className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{report.punctuation_details?.matched_pauses || 0}</span>
                             <span className="mx-1">÷</span>
-                            <span className="text-blue-600 font-bold">{report.punctuation_details?.total_expected_pauses || 0}</span>
+                            <span className={`font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{report.punctuation_details?.total_expected_pauses || 0}</span>
                             <span className="mx-1">×</span>
                             <span className="font-bold">100</span>
                           </p>
                         </div>
-                      </div>
 
-                      {/* Teacher Tip */}
-                      <div className="mt-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4 border-2 border-yellow-300">
-                        <div className="flex items-start gap-2">
-                          <span className="text-xl">👨‍🏫</span>
-                          <div>
-                            <p className="font-bold text-amber-800 text-sm">Teacher Tip:</p>
-                            <p className="text-gray-700 text-xs leading-relaxed">
-                              When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, 
-                              not just pronouncing words. Practice reading aloud together, emphasizing pauses at commas and periods.
-                            </p>
+                        {/* Teacher Tip */}
+                        <div className={`rounded-xl p-3 border ${darkMode ? 'bg-gradient-to-r from-yellow-900/50 to-amber-900/50 border-yellow-700' : 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300'} transition-colors`}>
+                          <div className="flex items-start gap-2">
+                            <span className="text-lg">👨‍🏫</span>
+                            <div>
+                              <p className={`font-bold text-xs mb-1 ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Teacher Tip:</p>
+                              <p className={`text-[10px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, not just pronouncing words.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
-
-                  {/* Word-by-Word Comparison - Interactive Highlighting */}
-                  {report.opcodes && report.ground_truth_words && report.asr_words && (
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg p-4 border-2 border-indigo-300">
-                      <h3 className="text-base font-black text-indigo-700 mb-3 flex items-center">
-                        <span className="text-2xl mr-2">🔍</span>
-                        Interactive Word Analysis
-                      </h3>
-                      <InteractivePassageHighlight 
-                        groundTruthWords={report.ground_truth_words}
-                        asrWords={report.asr_words}
-                        opcodes={report.opcodes}
-                      />
                     </div>
+                  </div>
+
+                  {/* Full Width: Interactive Word Playback */}
+                  {report.word_analysis && report.word_analysis.length > 0 && (
+                    <InteractiveWordPlayback 
+                      wordAnalysis={report.word_analysis}
+                      passageText={selectedPassage?.text || ''}
+                      audioPath={report.audio_path}
+                      opcodes={report.opcodes}
+                      asrWords={report.asr_words}
+                    />
                   )}
+
                 </div>
               )}
             </div>
@@ -1261,6 +1274,8 @@ function App() {
                   wordAnalysis={selectedReport.word_analysis}
                   passageText={selectedReport.passage_text || ''}
                   audioPath={selectedReport.audio_path}
+                  opcodes={selectedReport.opcodes}
+                  asrWords={selectedReport.asr_words}
                 />
               )}
             </div>
@@ -1274,6 +1289,9 @@ function App() {
             onViewReport={handleViewReport}
             darkMode={darkMode}
           />
+        ) : view === 'analytics' ? (
+          /* Advanced Analytics View */
+          <AdvancedAnalytics darkMode={darkMode} />
         ) : (
           /* Student Table View */
           <StudentTable 
@@ -1307,6 +1325,24 @@ function App() {
           darkMode={darkMode}
           currentUser={currentUser}
         />
+      )}
+
+      {/* Upload Passage Modal */}
+      {showUploadPassage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-2xl mx-auto">
+            <button 
+              onClick={() => setShowUploadPassage(false)} 
+              className={`absolute -top-3 -right-3 ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-100'} rounded-full shadow-lg p-2 transition z-10`}
+            >
+              ✕
+            </button>
+            <UploadPassage 
+              onClose={() => setShowUploadPassage(false)} 
+              onPassageAdded={fetchPassages}
+            />
+          </div>
+        </div>
       )}
 
             </>
