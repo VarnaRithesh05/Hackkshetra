@@ -67,16 +67,29 @@ if not ffmpeg_path:
 else:
     print(f"✓ FFmpeg found at: {ffmpeg_path}")
 
-# AI Model Loading
-print("Loading ASR (Whisper) model. This may take a moment...")
-print("⏳ First time: This will download ~290MB model...")
-try:
-    # Import transformers after setting ffmpeg path
-    asr_pipeline = pipeline("automatic-speech-recognition", model="openai/whisper-base.en")
-    print("✓ ASR Model loaded successfully.")
-except Exception as e:
-    print(f"✗ Error loading ASR model: {e}")
-    asr_pipeline = None
+# AI Model Loading (Non-blocking)
+asr_pipeline = None
+model_loaded = False
+
+def load_model():
+    global asr_pipeline, model_loaded
+    if model_loaded:
+        return
+    print("Loading ASR (Whisper) model. This may take a moment...")
+    print("⏳ This may take a few minutes on first run...")
+    try:
+        asr_pipeline = pipeline("automatic-speech-recognition", model="openai/whisper-base.en")
+        model_loaded = True
+        print("✓ ASR Model loaded successfully.")
+    except Exception as e:
+        print(f"✗ Error loading ASR model: {e}")
+        print("  Model will be loaded when analyze endpoint is first called.")
+        asr_pipeline = None
+
+# Start model loading in background thread
+import threading
+model_thread = threading.Thread(target=load_model, daemon=True)
+model_thread.start()
 
 
 def convert_webm_to_wav(input_path, output_path):
@@ -518,17 +531,49 @@ def handle_analysis():
             print(f"⚠ Warning: Could not cleanup temp files: {e}")
 
 
-@app.route('/api/passages', methods=['GET'])
+@app.route('/api/passages', methods=['GET', 'POST'])
 def get_passages():
     """
-    Fetches all reading passages from the database.
+    GET: Fetches all reading passages from the database.
+    POST: Uploads a new custom reading passage.
     """
     try:
-        passages = []
-        for passage in passages_collection.find():
-            passage['_id'] = str(passage['_id'])
-            passages.append(passage)
-        return jsonify(passages)
+        if request.method == 'POST':
+            data = request.get_json(silent=True)
+            if data is None:
+                return jsonify({"error": "Invalid or missing JSON body."}), 400
+
+            level = data.get('level', '').strip()
+            title = data.get('title', '').strip()
+            text = data.get('text', '').strip()
+
+            if not level or not title or not text:
+                return jsonify({"error": "Level, title, and text are required."}), 400
+
+            # Validate text length
+            word_count = len(text.split())
+            if word_count < 10:
+                return jsonify({"error": "Passage must contain at least 10 words."}), 400
+
+            # Create passage document
+            passage = {
+                "level": level,
+                "title": title,
+                "text": text,
+                "created_at": datetime.utcnow()
+            }
+
+            result = passages_collection.insert_one(passage)
+            passage['_id'] = str(result.inserted_id)
+            
+            return jsonify({"success": True, "passage": passage}), 201
+
+        else:  # GET method
+            passages = []
+            for passage in passages_collection.find():
+                passage['_id'] = str(passage['_id'])
+                passages.append(passage)
+            return jsonify(passages)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

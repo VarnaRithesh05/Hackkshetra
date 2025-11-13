@@ -6,6 +6,7 @@ import ForgotPassword from './components/Auth/ForgotPassword';
 import LandingPage from './components/LandingPage';
 import Profile from './components/Profile';
 import Dashboard from './components/Dashboard';
+import UploadPassage from './components/UploadPassage';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -425,6 +426,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
+  const [showUploadPassage, setShowUploadPassage] = useState(false);
   
   // Student information state
   const [studentName, setStudentName] = useState('');
@@ -435,20 +437,21 @@ function App() {
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
 
-  // Fetch passages on mount
-  useEffect(() => {
-    const fetchPassages = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/passages`);
-        setPassages(response.data);
-        if (response.data.length > 0) {
-          setSelectedPassageId(response.data[0]._id);
-        }
-      } catch (err) {
-        console.error("Error fetching passages:", err);
-        setError("Could not load passages. Please ensure the backend server is running.");
+  // Fetch passages function
+  const fetchPassages = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/passages`);
+      setPassages(response.data);
+      if (response.data.length > 0) {
+        setSelectedPassageId(response.data[0]._id);
       }
-    };
+    } catch (err) {
+      console.error("Error fetching passages:", err);
+      setError("Could not load passages. Please ensure the backend server is running.");
+    }
+  };
+
+  useEffect(() => {
     fetchPassages();
   }, []);
 
@@ -554,7 +557,7 @@ function App() {
     try {
       const response = await axios.post(`${API_URL}/analyze`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000, // 2 minute timeout for AI processing
+        timeout: 300000, // 5 minute timeout for AI processing
       });
       setReport(response.data);
       audioChunksRef.current = [];
@@ -748,10 +751,21 @@ function App() {
 
               {/* Passage Selection */}
               <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-pink-900 border-purple-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
-                  <span className="text-2xl mr-2">📖</span>
-                  Choose Story
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                    <span className="text-2xl mr-2">📖</span>
+                    Choose Story
+                  </h2>
+                  <button
+                    onClick={() => setShowUploadPassage(true)}
+                    disabled={isRecording || isLoading}
+                    className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-1 px-3 rounded-lg text-xs flex items-center space-x-1 transition-all"
+                    title="Upload a custom passage"
+                  >
+                    <span className="text-lg">➕</span>
+                    <span>Upload</span>
+                  </button>
+                </div>
                 <select
                   value={selectedPassageId || ''}
                   onChange={(e) => setSelectedPassageId(e.target.value)}
@@ -807,11 +821,15 @@ function App() {
                         onClick={handleAnalyze}
                         disabled={isLoading}
                         className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-3 px-6 rounded-full transition-all text-base`}
+                        title={isLoading ? "Processing audio with AI... This may take 1-3 minutes" : ""}
                       >
                         {isLoading ? (
                           <>
                             <Spinner />
-                            <span className="text-sm">Analyzing...</span>
+                            <div className="text-sm flex flex-col">
+                              <span>Analyzing...</span>
+                              <span className="text-xs opacity-75">(This may take 1-3 mins)</span>
+                            </div>
                           </>
                         ) : (
                           <>
@@ -1118,6 +1136,24 @@ function App() {
       </div>
 
             </>
+          )}
+
+          {/* Upload Passage Modal */}
+          {showUploadPassage && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="relative w-full max-w-2xl mx-auto">
+                <button 
+                  onClick={() => setShowUploadPassage(false)} 
+                  className={`absolute -top-3 -right-3 ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-100'} rounded-full shadow-lg p-2 transition z-10`}
+                >
+                  ✕
+                </button>
+                <UploadPassage 
+                  onClose={() => setShowUploadPassage(false)} 
+                  onPassageAdded={fetchPassages}
+                />
+              </div>
+            </div>
           )}
 
           {/* Footer */}
