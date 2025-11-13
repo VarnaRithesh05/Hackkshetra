@@ -52,6 +52,7 @@ MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
 db = None
 reports_collection = None
 passages_collection = None
+students_collection = None
 users_collection = None
 mongo_connected = False
 
@@ -61,6 +62,7 @@ try:
     db = client['akshara']
     reports_collection = db['reports']
     passages_collection = db['passages']
+    students_collection = db['students']
     users_collection = db['users']
     mongo_connected = True
     print("✓ MongoDB connection successful.")
@@ -271,6 +273,137 @@ def build_word_analysis(ground_truth_words, asr_words, word_chunks, sequence_mat
     return word_analysis
 
 
+def calculate_punctuation_awareness(word_chunks, ground_truth_text):
+    """
+    Calculate punctuation awareness score by analyzing pauses at punctuation marks.
+    
+    This measures if the student is reading for meaning by checking if they pause
+    appropriately at commas and periods.
+    
+    Args:
+        word_chunks: List of word dictionaries with text and timestamp tuples
+        ground_truth_text: The original passage text
+        
+    Returns:
+        dict with punctuation_score, matched_pauses, total_expected_pauses, and details
+    """
+    print("⏸️  Analyzing Punctuation Awareness...")
+    
+    if not word_chunks or len(word_chunks) < 2:
+        print("⚠️  Not enough word chunks for punctuation analysis")
+        return {
+            "punctuation_score": 0,
+            "matched_pauses": 0,
+            "total_expected_pauses": 0,
+            "total_pauses_detected": 0,
+            "details": []
+        }
+    
+    # Constants
+    PAUSE_THRESHOLD = 0.3  # seconds - meaningful pause
+    
+    # Build a map of punctuation positions by analyzing words directly
+    ground_truth_words = ground_truth_text.lower().split()
+    punctuation_positions = []
+    
+    for idx, word in enumerate(ground_truth_words):
+        # Check if word ends with punctuation
+        if word and word[-1] in ['.', ',', '!', '?', ';', ':']:
+            punctuation_positions.append({
+                'char': word[-1],
+                'word_index': idx,
+                'word': word,
+                'is_major': word[-1] in ['.', '!', '?']  # Period-like punctuation
+            })
+    
+    print(f"📍 Found {len(punctuation_positions)} punctuation marks in passage")
+    print(f"   Punctuation locations: {[f'{p['word']}(idx:{p['word_index']})' for p in punctuation_positions[:5]]}")
+    
+    # If no punctuation found, return zero score with message
+    if len(punctuation_positions) == 0:
+        print("⚠️  No punctuation marks found in passage - cannot calculate punctuation awareness")
+        return {
+            "punctuation_score": 0,
+            "matched_pauses": 0,
+            "total_expected_pauses": 0,
+            "total_pauses_detected": 0,
+            "pause_locations": [],
+            "message": "No punctuation marks in this passage"
+        }
+    
+    # Analyze pauses between words and match with punctuation
+    pauses = []
+    matched_pauses = 0
+    total_significant_pauses = 0
+    
+    # Create a set of punctuation word indices for faster lookup
+    punct_word_indices = {p['word_index'] for p in punctuation_positions}
+    
+    for i in range(len(word_chunks) - 1):
+        current_word = word_chunks[i]
+        next_word = word_chunks[i + 1]
+        
+        # Extract timestamps
+        current_timestamp = current_word.get('timestamp', (0, 0))
+        next_timestamp = next_word.get('timestamp', (0, 0))
+        
+        if not isinstance(current_timestamp, tuple) or not isinstance(next_timestamp, tuple):
+            continue
+            
+        current_end = current_timestamp[1]
+        next_start = next_timestamp[0]
+        
+        pause_duration = next_start - current_end
+        
+        # Only consider significant pauses
+        if pause_duration >= PAUSE_THRESHOLD:
+            total_significant_pauses += 1
+            
+            # Check if current word (i) has punctuation
+            # We check current word index against punctuation positions
+            has_punctuation = i in punct_word_indices
+            expected_punct = None
+            
+            if has_punctuation:
+                # Find the punctuation details
+                for punct in punctuation_positions:
+                    if punct['word_index'] == i:
+                        expected_punct = punct
+                        break
+            
+            pause_info = {
+                'word_index': i,
+                'word': current_word.get('text', ''),
+                'pause_duration': round(pause_duration, 2),
+                'has_punctuation': has_punctuation,
+                'punctuation': expected_punct['char'] if expected_punct else None
+            }
+            
+            if has_punctuation:
+                matched_pauses += 1
+                pause_info['matched'] = True
+            else:
+                pause_info['matched'] = False
+            
+            pauses.append(pause_info)
+    
+    # Calculate score based on total expected punctuation marks
+    total_expected = len(punctuation_positions)
+    punctuation_score = 0
+    if total_expected > 0:
+        punctuation_score = (matched_pauses / total_expected) * 100
+    
+    print(f"✅ Punctuation Score: {matched_pauses}/{total_expected} expected pauses matched = {round(punctuation_score, 1)}%")
+    
+    return {
+        "punctuation_score": round(punctuation_score, 1),
+        "matched_pauses": matched_pauses,
+        "total_expected_pauses": total_expected,
+        "total_pauses_detected": total_significant_pauses,
+        "pause_locations": pauses[:10]  # Send first 10 for debugging
+    }
+
+
 def analyze_audio_simple(audio_path, ground_truth_text):
     """
     Simplified analysis function
@@ -281,24 +414,22 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     print(f"📝 Analyzing audio file: {audio_path}")
     print(f"📖 Ground truth: {ground_truth_text[:50]}...")
 
-    # 1. ASR (Automatic Speech Recognition)
+    # 1. ASR (Automatic Speech Recognition) with Word-Level Timestamps
     print("🎤 Running ASR with word-level timestamps...")
     try:
         # Load audio with soundfile first (avoids ffmpeg dependency)
         audio_data, sample_rate = sf.read(audio_path)
         
         # Pass numpy array directly to Whisper instead of file path
-        # Use return_timestamps="word" to get word-level timestamps
+        # Use return_timestamps="word" to get word-level timestamps for punctuation analysis and word playback
         asr_result = asr_pipeline(
             {"raw": audio_data, "sampling_rate": sample_rate},
-            return_timestamps="word"  # Get word-level timestamps
+            return_timestamps="word"
         )
         asr_transcript = asr_result["text"].strip().lower()
-        
-        # Extract word chunks with timestamps
         word_chunks = asr_result.get("chunks", [])
         print(f"📝 ASR Transcript: {asr_transcript[:50]}...")
-        print(f"📊 Word chunks extracted: {len(word_chunks)} words")
+        print(f"📊 Got {len(word_chunks)} word-level timestamps")
     except Exception as e:
         print(f"✗ ASR Error: {e}")
         print(f"   Audio path: {audio_path}")
@@ -330,7 +461,10 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     s = difflib.SequenceMatcher(None, ground_truth_words, asr_words)
     accuracy_percent = s.ratio() * 100
     
-    # Create custom HTML diff with kid-friendly styling
+    # Get opcodes for React to render interactively
+    opcodes = s.get_opcodes()
+    
+    # Create custom HTML diff with kid-friendly styling (kept for backward compatibility)
     diff_html = create_word_comparison_html(ground_truth_words, asr_words, s)
     
     # 3. SPEED (WCPM - Words Correct Per Minute)
@@ -372,6 +506,10 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     else:
         prosody_score = "Very Fast"
     
+    # 5. PUNCTUATION AWARENESS (Pro-level metric)
+    # Measures if student pauses at commas/periods = reading for meaning
+    punctuation_analysis = calculate_punctuation_awareness(word_chunks, ground_truth_text)
+    
     print("✅ Analysis complete.")
     
     # Build word-level analysis for interactive playback
@@ -382,14 +520,25 @@ def analyze_audio_simple(audio_path, ground_truth_text):
         "accuracy_percent": round(accuracy_percent, 2),
         "prosody_score": prosody_score,
         "diff_html": diff_html,
+        "opcodes": opcodes,  # For React interactive highlighting
+        "ground_truth_words": ground_truth_words,  # Original passage words
+        "asr_words": asr_words,  # What student actually said
         "articulation_rate": round(speaking_rate, 2),
-        "pause_count": 0,
+        "pause_count": punctuation_analysis["total_pauses_detected"],
         "duration_seconds": round(duration_sec, 2),
         "correct_words": correct_words,
         "total_words": len(ground_truth_words),
-        "created_at": datetime.utcnow(),
+        # Pro-level metric: Punctuation Awareness (clearer structure)
+        "punctuation_score": punctuation_analysis["punctuation_score"],
+        "punctuation_details": {
+            "matched_pauses": punctuation_analysis["matched_pauses"],
+            "total_expected_pauses": punctuation_analysis["total_expected_pauses"],
+            "total_pauses_detected": punctuation_analysis["total_pauses_detected"],
+            "pause_locations": punctuation_analysis["pause_locations"]
+        },
         "word_analysis": word_analysis,  # New: word-level data for interactive playback
-        "audio_path": audio_path  # Store audio path for word extraction
+        "audio_path": audio_path,  # Store audio path for word extraction
+        "created_at": datetime.utcnow()
     }
 
 
@@ -462,6 +611,40 @@ def handle_analysis():
         report['passage_id'] = str(report['passage_id'])
         
         print(f"✓ Report saved with ID: {report['_id']}")
+        
+        # Update student level based on performance
+        if student_name:
+            try:
+                accuracy = float(report.get('accuracy_percent', 0))
+                fluency = float(report.get('prosody_score', 0))
+                
+                # Get current student level
+                student = students_collection.find_one({"name": student_name})
+                if student:
+                    current_level = int(student.get('current_level', 1))
+                    
+                    # Level up if both accuracy and fluency are good (>=90%)
+                    if accuracy >= 90 and fluency >= 80:
+                        new_level = min(current_level + 1, 4)  # Max level 4
+                        if new_level != current_level:
+                            students_collection.update_one(
+                                {"name": student_name},
+                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
+                            )
+                            print(f"📈 Student level increased: {current_level} → {new_level}")
+                    
+                    # Level down if performance is poor (accuracy <70% or fluency <50%)
+                    elif (accuracy < 70 or fluency < 50) and current_level > 1:
+                        new_level = max(current_level - 1, 1)  # Min level 1
+                        if new_level != current_level:
+                            students_collection.update_one(
+                                {"name": student_name},
+                                {"$set": {"current_level": new_level, "updated_at": datetime.now()}}
+                            )
+                            print(f"📉 Student level decreased: {current_level} → {new_level}")
+            except Exception as e:
+                print(f"⚠ Warning: Could not update student level: {e}")
+        
         print("="*60)
         print("✅ ANALYSIS COMPLETE - SENDING RESPONSE")
         print("="*60 + "\n")
@@ -838,6 +1021,321 @@ def get_reading_groups():
         })
     except Exception as e:
         print(f"ERROR in get_reading_groups: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# STUDENT MANAGEMENT ENDPOINTS
+# ============================================================
+
+@app.route('/api/students/upload', methods=['POST'])
+def upload_students():
+    """Upload student list from Excel file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        teacher_id = request.form.get('teacher_id', 'default_teacher')
+        
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({"error": "File must be Excel format (.xlsx or .xls)"}), 400
+        
+        # Save temp file
+        temp_path = f"temp_roster_{datetime.now().timestamp()}.xlsx"
+        file.save(temp_path)
+        
+        # Parse Excel file
+        from openpyxl import load_workbook
+        wb = load_workbook(temp_path)
+        ws = wb.active
+        
+        students_added = 0
+        students_updated = 0
+        
+        # Expected columns: Name, Grade, Student ID (optional)
+        for row in ws.iter_rows(min_row=2, values_only=True):  # Skip header
+            if not row[0]:  # Skip empty rows
+                continue
+                
+            student_name = str(row[0]).strip()
+            grade = str(row[1]).strip() if len(row) > 1 and row[1] else ""
+            student_id = str(row[2]).strip() if len(row) > 2 and row[2] else None
+            
+            if not student_name:
+                continue
+            
+            # Create student document
+            student_doc = {
+                "name": student_name,
+                "grade": grade,
+                "teacher_id": teacher_id,
+                "current_level": 1,  # Start at level 1
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            
+            if student_id:
+                student_doc["student_id"] = student_id
+            
+            # Check if student already exists
+            existing = students_collection.find_one({
+                "name": student_name,
+                "teacher_id": teacher_id
+            })
+            
+            if existing:
+                students_collection.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": student_doc}
+                )
+                students_updated += 1
+            else:
+                students_collection.insert_one(student_doc)
+                students_added += 1
+        
+        # Cleanup temp file
+        os.remove(temp_path)
+        
+        return jsonify({
+            "success": True,
+            "students_added": students_added,
+            "students_updated": students_updated,
+            "total": students_added + students_updated
+        })
+        
+    except Exception as e:
+        print(f"ERROR in upload_students: {e}")
+        import traceback; traceback.print_exc()
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students', methods=['GET'])
+def get_students():
+    """Get all students for a teacher"""
+    try:
+        teacher_id = request.args.get('teacher_id', 'default_teacher')
+        
+        students = list(students_collection.find(
+            {"teacher_id": teacher_id}
+        ).sort("name", 1))
+        
+        # Convert ObjectId to string
+        for student in students:
+            student['_id'] = str(student['_id'])
+            
+        return jsonify(students)
+        
+    except Exception as e:
+        print(f"ERROR in get_students: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students/<student_name>/recommended-passage', methods=['GET'])
+def get_recommended_passage(student_name):
+    """Get recommended passage for a student based on their current level"""
+    try:
+        # Find student
+        student = students_collection.find_one({"name": student_name})
+        
+        if not student:
+            # If student not found, return level 1 passage
+            passage = passages_collection.find_one({"level": "Level 1"})
+        else:
+            current_level = student.get('current_level', 1)
+            # Get passage for current level
+            passage = passages_collection.find_one({"level": f"Level {current_level}"})
+            
+            # If no passage found for level, default to level 1
+            if not passage:
+                passage = passages_collection.find_one({"level": "Level 1"})
+        
+        if passage:
+            passage['_id'] = str(passage['_id'])
+            return jsonify({
+                "passage": passage,
+                "current_level": student.get('current_level', 1) if student else 1
+            })
+        else:
+            return jsonify({"error": "No passages found"}), 404
+            
+    except Exception as e:
+        print(f"ERROR in get_recommended_passage: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/students/<student_name>/history', methods=['GET'])
+def get_student_history(student_name):
+    """Get reading history for a specific student"""
+    try:
+        # Get all reports for this student
+        reports = list(reports_collection.find(
+            {"student_name": student_name}
+        ).sort("timestamp", 1))  # Chronological order
+        
+        if not reports:
+            return jsonify({
+                "student_name": student_name,
+                "reports": [],
+                "stats": {
+                    "total_readings": 0,
+                    "avg_pronunciation": 0,
+                    "avg_fluency": 0,
+                    "avg_wcpm": 0,
+                    "avg_punctuation": 0
+                },
+                "trends": {
+                    "pronunciation": "stable",
+                    "fluency": "stable",
+                    "wcpm": "stable",
+                    "punctuation": "stable"
+                },
+                "suggestions": []
+            })
+        
+        # Convert ObjectId to string
+        for report in reports:
+            report['_id'] = str(report['_id'])
+            if 'passage_id' in report:
+                report['passage_id'] = str(report['passage_id'])
+        
+        # Calculate statistics
+        total_readings = len(reports)
+        
+        # Convert all values to float to handle mixed types from database
+        pronunciation_scores = [float(r.get('accuracy_percent', 0)) for r in reports]
+        fluency_scores = [float(r.get('prosody_score', 0)) for r in reports]
+        wcpm_scores = [float(r.get('wcpm', 0)) for r in reports]
+        punctuation_scores = [float(r.get('punctuation_details', {}).get('punctuation_score', 0)) for r in reports]
+        
+        avg_pronunciation = sum(pronunciation_scores) / total_readings if total_readings > 0 else 0
+        avg_fluency = sum(fluency_scores) / total_readings if total_readings > 0 else 0
+        avg_wcpm = sum(wcpm_scores) / total_readings if total_readings > 0 else 0
+        avg_punctuation = sum(punctuation_scores) / total_readings if total_readings > 0 else 0
+        
+        # Analyze trends (compare last 3 readings to previous 3)
+        def calculate_trend(scores):
+            if len(scores) < 4:
+                return "stable"
+            recent = sum(scores[-3:]) / 3
+            previous = sum(scores[-6:-3]) / 3 if len(scores) >= 6 else sum(scores[:-3]) / len(scores[:-3])
+            if recent > previous + 5:
+                return "improving"
+            elif recent < previous - 5:
+                return "declining"
+            return "stable"
+        
+        trends = {
+            "pronunciation": calculate_trend(pronunciation_scores),
+            "fluency": calculate_trend(fluency_scores),
+            "wcpm": calculate_trend(wcpm_scores),
+            "punctuation": calculate_trend(punctuation_scores)
+        }
+        
+        # Generate suggestions based on performance
+        suggestions = []
+        
+        if avg_pronunciation < 85:
+            suggestions.append({
+                "category": "Pronunciation",
+                "priority": "high",
+                "suggestion": "Focus on phonics practice. Student struggles with accurate word pronunciation.",
+                "activities": ["Sound-symbol correspondence exercises", "Repeated reading of familiar texts"]
+            })
+        elif avg_pronunciation < 95:
+            suggestions.append({
+                "category": "Pronunciation",
+                "priority": "medium",
+                "suggestion": "Continue building decoding skills with challenging vocabulary.",
+                "activities": ["Word family exercises", "Multi-syllable word practice"]
+            })
+        
+        if avg_fluency < 70:
+            suggestions.append({
+                "category": "Fluency",
+                "priority": "high",
+                "suggestion": "Work on prosody and expression. Practice reading with appropriate pacing.",
+                "activities": ["Echo reading", "Choral reading", "Reader's theater"]
+            })
+        
+        if avg_wcpm < 60:
+            suggestions.append({
+                "category": "Reading Speed",
+                "priority": "high",
+                "suggestion": "Student reads slowly. Focus on building automaticity with high-frequency words.",
+                "activities": ["Timed repeated readings", "Sight word practice"]
+            })
+        elif avg_wcpm > 150:
+            suggestions.append({
+                "category": "Reading Speed",
+                "priority": "low",
+                "suggestion": "Student reads very quickly. Check for comprehension and accuracy.",
+                "activities": ["Comprehension questions after reading", "Slow down and focus on expression"]
+            })
+        
+        if avg_punctuation < 60:
+            suggestions.append({
+                "category": "Punctuation Awareness",
+                "priority": "medium",
+                "suggestion": "Practice pausing at punctuation marks. Model proper phrasing.",
+                "activities": ["Marked text reading", "Punctuation treasure hunt", "Pause and breathe exercises"]
+            })
+        
+        # Trend-based suggestions
+        if trends["pronunciation"] == "declining":
+            suggestions.append({
+                "category": "Alert",
+                "priority": "high",
+                "suggestion": "⚠️ Pronunciation scores are declining. Schedule intervention time.",
+                "activities": ["One-on-one reading support", "Diagnostic assessment"]
+            })
+        
+        if trends["fluency"] == "improving":
+            suggestions.append({
+                "category": "Positive Progress",
+                "priority": "low",
+                "suggestion": "🎉 Great progress in fluency! Keep up the good work.",
+                "activities": ["Challenge with higher-level texts", "Peer reading partnerships"]
+            })
+        
+        if not suggestions:
+            suggestions.append({
+                "category": "Overall",
+                "priority": "low",
+                "suggestion": "✅ Student is performing well across all metrics. Continue current practices.",
+                "activities": ["Maintain regular practice", "Introduce more complex texts"]
+            })
+        
+        return jsonify({
+            "student_name": student_name,
+            "reports": reports,
+            "stats": {
+                "total_readings": total_readings,
+                "avg_pronunciation": round(avg_pronunciation, 1),
+                "avg_fluency": round(avg_fluency, 1),
+                "avg_wcpm": round(avg_wcpm, 1),
+                "avg_punctuation": round(avg_punctuation, 1)
+            },
+            "trends": trends,
+            "suggestions": suggestions,
+            "chart_data": {
+                "labels": [r.get('timestamp', '') for r in reports],
+                "pronunciation": pronunciation_scores,
+                "fluency": fluency_scores,
+                "wcpm": wcpm_scores,
+                "punctuation": punctuation_scores
+            }
+        })
+        
+    except Exception as e:
+        print(f"ERROR in get_student_history: {e}")
         import traceback; traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
