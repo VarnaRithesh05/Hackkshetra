@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import InteractiveWordPlayback from './components/InteractiveWordPlayback';
 import StudentTable from './components/StudentTable';
 import StudentDashboard from './components/StudentDashboard';
+import StudentUpload from './components/StudentUpload';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -433,6 +434,10 @@ function App() {
   const [studentName, setStudentName] = useState('');
   const [studentGrade, setStudentGrade] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [studentsList, setStudentsList] = useState([]);
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Student dashboard state
   const [students, setStudents] = useState([]);
@@ -444,7 +449,7 @@ function App() {
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
 
-  // Fetch passages on mount
+  // Fetch passages and students on mount
   useEffect(() => {
     const fetchPassages = async () => {
       try {
@@ -460,8 +465,21 @@ function App() {
         setError("Could not load passages. Please ensure the backend server is running.");
       }
     };
+
+    const fetchStudents = async () => {
+      try {
+        const teacherId = currentUser?.id || 'default_teacher';
+        const response = await axios.get(`${API_URL}/students`, {
+          params: { teacher_id: teacherId }
+        });
+        setStudentsList(response.data);
+      } catch (err) {
+        console.error("Error fetching students:", err);
+      }
+    };
     fetchPassages();
-  }, []);
+    fetchStudents();
+  }, [currentUser]);
 
   // Timer effect
   useEffect(() => {
@@ -715,6 +733,15 @@ function App() {
               </span>
             </button>
             <button
+              onClick={() => setShowUploadModal(true)}
+              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
+            >
+              <span className="flex items-center space-x-2">
+                <span className="text-xl">📤</span>
+                <span>Upload Students</span>
+              </span>
+            </button>
+            <button
               onClick={() => {
                 setView('history');
                 fetchStudents();
@@ -763,18 +790,69 @@ function App() {
                   )}
                 </div>
                 <div className="space-y-3">
-                  <div>
+                  <div className="relative">
                     <label className={`block text-xs font-bold ${darkMode ? 'text-blue-300' : 'text-blue-900'} mb-1`}>
                       Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
+                      onChange={(e) => {
+                        setStudentName(e.target.value);
+                        const filtered = studentsList.filter(s => 
+                          s.name.toLowerCase().includes(e.target.value.toLowerCase())
+                        );
+                        setFilteredStudents(filtered);
+                        setShowStudentDropdown(e.target.value.length > 0 && filtered.length > 0);
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value.length > 0) {
+                          const filtered = studentsList.filter(s => 
+                            s.name.toLowerCase().includes(e.target.value.toLowerCase())
+                          );
+                          setFilteredStudents(filtered);
+                          setShowStudentDropdown(filtered.length > 0);
+                        }
+                      }}
                       disabled={isRecording || isLoading}
-                      placeholder="Student's name"
+                      placeholder="Type student's name or select from list"
                       className={`w-full px-3 py-2 border-2 ${darkMode ? 'bg-gray-800 border-blue-600 text-white placeholder-gray-400' : 'bg-white border-blue-300 text-gray-900'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 text-sm font-medium transition-colors`}
                     />
+                    {/* Student Dropdown */}
+                    {showStudentDropdown && filteredStudents.length > 0 && (
+                      <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-blue-600' : 'bg-white border-blue-300'} border-2 rounded-xl shadow-lg max-h-48 overflow-y-auto`}>
+                        {filteredStudents.map((student) => (
+                          <button
+                            key={student._id}
+                            type="button"
+                            onClick={async () => {
+                              setStudentName(student.name);
+                              setStudentGrade(student.grade || '');
+                              setStudentId(student.student_id || '');
+                              setShowStudentDropdown(false);
+                              
+                              // Fetch recommended passage for this student
+                              try {
+                                const response = await axios.get(`${API_URL}/students/${encodeURIComponent(student.name)}/recommended-passage`);
+                                if (response.data.passage) {
+                                  setSelectedPassageId(response.data.passage._id);
+                                  console.log(`📚 Auto-selected Level ${response.data.current_level} passage for ${student.name}`);
+                                }
+                              } catch (err) {
+                                console.error('Error fetching recommended passage:', err);
+                              }
+                            }}
+                            className={`w-full text-left px-4 py-2 ${darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-blue-50 text-gray-900'} transition-colors flex items-center justify-between`}
+                          >
+                            <div>
+                              <div className="font-semibold">{student.name}</div>
+                              {student.grade && <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Grade: {student.grade}</div>}
+                            </div>
+                            {student.student_id && <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>ID: {student.student_id}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -817,7 +895,7 @@ function App() {
                   value={selectedPassageId || ''}
                   onChange={(e) => setSelectedPassageId(e.target.value)}
                   disabled={isRecording || isLoading || passages.length === 0}
-                  className={`w-full px-3 py-2 border ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-white border-purple-300 text-gray-900'} rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm shadow-sm transition-colors`}
+                  className={`w-full px-3 py-2 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-white border-purple-300 text-gray-900'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-bold text-sm transition-colors`}
                 >
                   {passages.length === 0 ? (
                     <option value="">No stories available - Check MongoDB connection</option>
@@ -1110,6 +1188,21 @@ function App() {
                       </div>
                     </div>
                   )}
+
+                  {/* Word-by-Word Comparison - Interactive Highlighting */}
+                  {report.opcodes && report.ground_truth_words && report.asr_words && (
+                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg p-4 border-2 border-indigo-300">
+                      <h3 className="text-base font-black text-indigo-700 mb-3 flex items-center">
+                        <span className="text-2xl mr-2">🔍</span>
+                        Interactive Word Analysis
+                      </h3>
+                      <InteractivePassageHighlight 
+                        groundTruthWords={report.ground_truth_words}
+                        asrWords={report.asr_words}
+                        opcodes={report.opcodes}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1190,6 +1283,31 @@ function App() {
           />
         )}
       </div>
+
+      {/* Student Upload Modal */}
+      {showUploadModal && (
+        <StudentUpload
+          onUploadSuccess={() => {
+            setShowUploadModal(false);
+            // Refresh students list
+            const fetchStudents = async () => {
+              try {
+                const teacherId = currentUser?.id || 'default_teacher';
+                const response = await axios.get(`${API_URL}/students`, {
+                  params: { teacher_id: teacherId }
+                });
+                setStudentsList(response.data);
+              } catch (err) {
+                console.error("Error fetching students:", err);
+              }
+            };
+            fetchStudents();
+          }}
+          onClose={() => setShowUploadModal(false)}
+          darkMode={darkMode}
+          currentUser={currentUser}
+        />
+      )}
 
             </>
           )}
