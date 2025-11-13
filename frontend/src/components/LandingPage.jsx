@@ -52,10 +52,10 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
         <div className="container mx-auto px-8">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className={`text-6xl md:text-7xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-6`}>
-              Stop Guessing. Start Teaching.
+              Empower Your Teaching with Data
             </h2>
             <p className={`text-2xl ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-12 leading-relaxed`}>
-              AI-Powered Reading Diagnostics in 60 Seconds. Get objective data on Speed, Accuracy, and Prosody.
+              AI-powered reading assessments in 60 seconds. Get clear insights on Speed, Accuracy, and Prosody to support every student's journey.
             </p>
             <button
               onClick={onGetStarted}
@@ -71,28 +71,28 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
       <section className="py-20">
         <div className="container mx-auto px-8">
           <h2 className={`text-5xl font-black text-center mb-16 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Your Busiest Teachers Are Flying Blind
+            We Understand Your Challenges
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className={`${darkMode ? 'bg-gray-800 border-red-400' : 'bg-white border-red-200'} p-8 rounded-2xl border shadow-md hover:shadow-lg transition`}>
               <div className="text-5xl mb-4">⏰</div>
-              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Too Slow</h3>
+              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Time Constraints</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} text-lg leading-relaxed`}>
-                Manual screening takes 5-10 minutes per student, which is impossible for a class of 50.
+                With large class sizes, finding time for individual reading assessments can be challenging. We help you assess faster without compromising quality.
               </p>
             </div>
             <div className={`${darkMode ? 'bg-gray-800 border-yellow-400' : 'bg-white border-yellow-200'} p-8 rounded-2xl border shadow-md hover:shadow-lg transition`}>
               <div className="text-5xl mb-4">📋</div>
-              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Incomplete</h3>
+              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Complete Picture</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} text-lg leading-relaxed`}>
-                Standard tests miss Prosody (expression), the key to true comprehension.
+                Go beyond standard tests with Prosody analysis—measuring expression and comprehension to give you deeper insights into each student's reading ability.
               </p>
             </div>
             <div className={`${darkMode ? 'bg-gray-800 border-blue-400' : 'bg-white border-blue-200'} p-8 rounded-2xl border shadow-md hover:shadow-lg transition`}>
               <div className="text-5xl mb-4">👥</div>
-              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Ineffective Grouping</h3>
+              <h3 className={`font-black text-2xl ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>Personalized Learning</h3>
               <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'} text-lg leading-relaxed`}>
-                Students are grouped by age, not ability. Struggling readers fall further behind.
+                Get data-driven insights to group students by reading level, not just age. Help every student progress at their own pace with targeted support.
               </p>
             </div>
           </div>
@@ -103,7 +103,7 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
       <section className="py-20">
         <div className="container mx-auto px-8">
           <h2 className={`text-5xl font-black text-center mb-16 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Go Beyond Just Words Per Minute
+            Comprehensive Reading Assessment Tools
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className={`${darkMode ? 'bg-gradient-to-br from-blue-900 to-blue-800' : 'bg-gradient-to-br from-blue-50 to-blue-100'} rounded-2xl shadow-lg p-8 border-l-4 border-blue-400 hover:shadow-xl transition`}>
@@ -177,7 +177,7 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
               Ready to Transform Reading Assessment?
             </h3>
             <p className={`text-xl ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-8`}>
-              Start assessing your students reading fluency with Akshara today. Get instant, objective insights that empower better teaching.
+              Join educators who are using Akshara to support their students' reading journey. Get instant, actionable insights that help you make informed teaching decisions.
             </p>
             <button
               onClick={onGetStarted}
@@ -193,7 +193,7 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
       <footer className={`${darkMode ? 'bg-black text-gray-400' : 'bg-gray-900 text-gray-300'} py-12 transition-colors`}>
         <div className="container mx-auto px-8 text-center">
           <p className="text-lg font-semibold">
-            © 2025 Akshara. Making Reading Fun with AI Magic!
+            © 2025 Akshara. Supporting Teachers, Empowering Students.
           </p>
         </div>
       </footer>
