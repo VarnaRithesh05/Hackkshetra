@@ -14,6 +14,7 @@ import warnings
 import wave
 import subprocess
 import shutil
+from werkzeug.security import generate_password_hash, check_password_hash
 warnings.filterwarnings('ignore')
 
 # Configure FFmpeg BEFORE importing transformers
@@ -47,6 +48,7 @@ except Exception as e:
 db = client['akshara']
 reports_collection = db['reports']
 passages_collection = db['passages']
+users_collection = db['users']
 
 # Check for ffmpeg and set environment variable
 ffmpeg_path = shutil.which('ffmpeg')
@@ -393,6 +395,136 @@ def get_reports():
                 report['passage_id'] = str(report['passage_id'])
             reports.append(report)
         return jsonify(reports)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/signup', methods=['POST'])
+def auth_signup():
+    try:
+        data = request.get_json(force=True)
+        email = data.get('email', '').strip().lower()
+        name = data.get('name', '').strip()
+        password = data.get('password', '')
+        if not email or not password:
+            return jsonify({"error": "Email and password are required."}), 400
+
+        existing = users_collection.find_one({"email": email})
+        if existing:
+            return jsonify({"error": "User already exists."}), 400
+
+        pw_hash = generate_password_hash(password)
+        user = {
+            "email": email,
+            "name": name,
+            "password_hash": pw_hash,
+            "created_at": datetime.utcnow()
+        }
+        result = users_collection.insert_one(user)
+        user['_id'] = str(result.inserted_id)
+        return jsonify({"success": True, "user": {"_id": user['_id'], "email": email, "name": name}})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    try:
+        data = request.get_json(force=True)
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        if not email or not password:
+            return jsonify({"error": "Email and password are required."}), 400
+
+        user = users_collection.find_one({"email": email})
+        if not user:
+            return jsonify({"error": "Invalid credentials."}), 401
+
+        if not check_password_hash(user.get('password_hash', ''), password):
+            return jsonify({"error": "Invalid credentials."}), 401
+
+        # Simple session token (not JWT) - in production use secure JWTs and HTTPS
+            token = os.urandom(24).hex()
+            users_collection.update_one({"_id": user['_id']}, {"$set": {"last_token": token, "last_login": datetime.utcnow()}})
+
+            return jsonify({"success": True, "user": {"_id": str(user['_id']), "email": user['email'], "name": user.get('name', '')}, "token": token})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def auth_forgot():
+    try:
+        data = request.get_json(force=True)
+        email = data.get('email', '').strip().lower()
+        if not email:
+            return jsonify({"error": "Email is required."}), 400
+
+        user = users_collection.find_one({"email": email})
+        if not user:
+            # don't reveal whether user exists
+            return jsonify({"success": True})
+
+        # create a reset token (stored in DB) - no email sending in this simplified version
+        token = os.urandom(20).hex()
+        users_collection.update_one({"_id": user['_id']}, {"$set": {"pw_reset_token": token, "pw_reset_at": datetime.utcnow()}})
+        # In production, send email containing reset link with token
+        print(f"Password reset token for {email}: {token}")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    try:
+        token = request.headers.get('Authorization') or request.get_json(silent=True, force=False) and request.get_json().get('token')
+        if not token:
+            return jsonify({"error": "No token provided."}), 400
+        user = users_collection.find_one({"last_token": token})
+        if not user:
+            return jsonify({"success": True})
+        users_collection.update_one({"_id": user['_id']}, {"$unset": {"last_token": ""}})
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/update-profile', methods=['POST'])
+def auth_update_profile():
+    try:
+        token = request.headers.get('Authorization')
+        data = request.get_json(force=True)
+        name = data.get('name', '').strip()
+        if not token:
+            return jsonify({"error": "Unauthorized"}), 401
+        user = users_collection.find_one({"last_token": token})
+        if not user:
+            return jsonify({"error": "Invalid token"}), 401
+        users_collection.update_one({"_id": user['_id']}, {"$set": {"name": name}})
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+def auth_change_password():
+    try:
+        token = request.headers.get('Authorization')
+        data = request.get_json(force=True)
+        old_password = data.get('old_password', '')
+        new_password = data.get('new_password', '')
+        if not token:
+            return jsonify({"error": "Unauthorized"}), 401
+        user = users_collection.find_one({"last_token": token})
+        if not user:
+            return jsonify({"error": "Invalid token"}), 401
+        # verify old password
+        if not check_password_hash(user.get('password_hash', ''), old_password):
+            return jsonify({"error": "Invalid current password."}), 401
+        # set new password
+        users_collection.update_one({"_id": user['_id']}, {"$set": {"password_hash": generate_password_hash(new_password)}})
+        return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

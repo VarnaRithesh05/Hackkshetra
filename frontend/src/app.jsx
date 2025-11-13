@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import Login from './components/Auth/Login';
+import Signup from './components/Auth/Signup';
+import ForgotPassword from './components/Auth/ForgotPassword';
+import LandingPage from './components/LandingPage';
+import Profile from './components/Profile';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -13,28 +18,97 @@ const Spinner = () => (
   </svg>
 );
 
-const Header = () => (
-  <header className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-xl">
-    <div className="container mx-auto px-4 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="bg-white rounded-full p-2 shadow-lg">
-            <svg className="h-8 w-8 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
+const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile }) => {
+  // Local state for small profile dropdown
+  const [showDropdown, setShowDropdown] = useState(false);
+  const btnRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === 'Escape') setShowDropdown(false);
+      // basic keyboard: Enter/Space on button toggles handled by button element
+    }
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) && btnRef.current && !btnRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    }
+    if (showDropdown) {
+      document.addEventListener('keydown', handleKey);
+      document.addEventListener('mousedown', handleClick);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [showDropdown]);
+
+  useEffect(() => {
+    // Focus first action when dropdown opens
+    if (showDropdown && dropdownRef.current) {
+      const first = dropdownRef.current.querySelector('button');
+      first && first.focus();
+    }
+  }, [showDropdown]);
+
+  return (
+    <header className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-xl">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="bg-white rounded-full p-2 shadow-lg">
+              <svg className="h-8 w-8 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight">✨ Akshara</h1>
+              <p className="text-pink-100 text-xs font-medium">60-Second Reading Fun! 📚</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">✨ Akshara</h1>
-            <p className="text-pink-100 text-xs font-medium">60-Second Reading Fun! 📚</p>
+
+          {/* Right side: either auth buttons or profile */}
+          <div className="hidden sm:flex items-center space-x-2 relative">
+            {!currentUser ? (
+              <>
+                <span className="text-white text-sm font-bold bg-white/20 px-3 py-1 rounded-full">AI-Powered</span>
+                <button
+                  onClick={onLoginClick}
+                  className="ml-3 bg-white/20 text-white hover:bg-white/30 px-3 py-1 rounded-full font-bold text-sm"
+                >
+                  Teacher Login
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  ref={btnRef}
+                  aria-haspopup="true"
+                  aria-expanded={showDropdown}
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  onKeyDown={(e) => { if (e.key === 'ArrowDown') setShowDropdown(true); }}
+                  className="flex items-center space-x-2 bg-white/10 text-white px-3 py-1 rounded-full hover:bg-white/20"
+                >
+                  <span className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-sm">{(currentUser.name || currentUser.email || 'T').charAt(0).toUpperCase()}</span>
+                  <span className="font-bold text-sm">{currentUser.name ? currentUser.name.split(' ')[0] : (currentUser.email ? currentUser.email.split('@')[0] : 'Teacher')}</span>
+                </button>
+
+                {showDropdown && (
+                  <div ref={dropdownRef} role="menu" aria-label="Profile menu" className="absolute right-0 mt-12 w-44 bg-white rounded-lg shadow-lg text-gray-800 p-2 z-50">
+                    <button onClick={() => { onViewProfile && onViewProfile(); setShowDropdown(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded">View Profile</button>
+                    <button onClick={() => { onLogout && onLogout(); setShowDropdown(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded">Logout</button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </div>
-        <div className="hidden sm:flex items-center space-x-2">
-          <span className="text-white text-sm font-bold bg-white/20 px-3 py-1 rounded-full">AI-Powered</span>
         </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const Timer = ({ seconds }) => {
   const minutes = Math.floor(seconds / 60);
@@ -102,6 +176,81 @@ const Alert = ({ type = 'info', message, onClose }) => {
 
 function App() {
   // State management
+  const [showAuth, setShowAuth] = useState(false);
+  const [authPage, setAuthPage] = useState('login'); // 'login' | 'signup' | 'forgot'
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authToken, setAuthToken] = useState(null);
+
+  const openAuth = (page = 'login') => {
+    setAuthPage(page);
+    setShowAuth(true);
+  };
+  const closeAuth = () => setShowAuth(false);
+
+  const openProfilePage = () => {
+    // only allow when logged in
+    if (!isLoggedIn) {
+      openAuth('login');
+      return;
+    }
+    setView('profile');
+    try { window.location.hash = '#/profile'; } catch (e) {}
+  };
+
+  const handleLoginSuccess = (user, token) => {
+    // Ensure user object includes name when available
+    const u = { ...user, name: user.name || '' };
+    setCurrentUser(u);
+    setIsLoggedIn(true);
+    setShowAuth(false);
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('currentUser', JSON.stringify(u));
+    setAuthToken(token);
+  };
+
+  const handleLogout = () => {
+    // Inform backend to invalidate token when possible
+    if (authToken) {
+      axios.post(`${API_URL}/auth/logout`, {}, { headers: { Authorization: authToken } }).catch((e) => console.warn('Logout request failed', e));
+    }
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    // Clear localStorage so landing page shows on next visit
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+    setAuthToken(null);
+  };
+
+  // Always show landing page first - no auto-login from localStorage
+  // Login state resets every time the app/server restarts
+  useEffect(() => {
+    // Intentionally NOT restoring login state from localStorage
+    // This ensures landing page always shows first and login is required after server restart
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+  }, []);
+
+  // Keep view in sync with URL hash so browser Back works (e.g. back from #/profile -> record)
+  useEffect(() => {
+    function onHashChange() {
+      try {
+        const h = window.location.hash || '';
+        if (h === '#/profile') {
+          setView('profile');
+        } else {
+          // default to record for any other hash or empty
+          setView('record');
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    // initialize from current hash
+    onHashChange();
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
   const [passages, setPassages] = useState([]);
   const [selectedPassageId, setSelectedPassageId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -279,9 +428,39 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
-      <Header />
+      {!isLoggedIn ? (
+        // Show Landing Page + Auth Modal
+        <>
+          <LandingPage onGetStarted={() => openAuth('login')} />
+          {/* Auth Modal */}
+          {showAuth && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+              <div className="relative w-full max-w-md mx-auto">
+                <button onClick={closeAuth} className="absolute -top-3 -right-3 bg-white rounded-full shadow-lg p-2">✕</button>
+                {authPage === 'login' && <div className="p-4"><Login onClose={closeAuth} onSwitch={(p) => setAuthPage(p)} onLoginSuccess={handleLoginSuccess} /></div>}
+                {authPage === 'signup' && <div className="p-4"><Signup onClose={closeAuth} onSwitch={(p) => setAuthPage(p)} onLoginSuccess={handleLoginSuccess} /></div>}
+                {authPage === 'forgot' && <div className="p-4"><ForgotPassword onClose={closeAuth} onSwitch={(p) => setAuthPage(p)} /></div>}
+              </div>
+            </div>
+          )}
 
-      {/* Navigation Tabs */}
+          {/* Profile is now a dedicated page (see Header 'View Profile') */}
+        </>
+      ) : (
+        // Show Dashboard
+        <>
+          <Header onLoginClick={() => openAuth('login')} onLogout={handleLogout} currentUser={currentUser} onViewProfile={openProfilePage} />
+
+          {/* Profile Page */}
+          {view === 'profile' && (
+            <div className="container mx-auto px-4 py-8">
+              <Profile user={currentUser} token={authToken} onClose={() => setView('record')} onUpdateUser={(u) => setCurrentUser(u)} onLogout={() => { handleLogout(); setView('record'); }} />
+            </div>
+          )}
+
+          {view !== 'profile' && (
+            <>
+              {/* Navigation Tabs */}
       <div className="bg-white/80 backdrop-blur-sm shadow-md border-b-4 border-pink-300">
         <div className="container mx-auto px-4">
           <div className="flex space-x-4">
@@ -622,14 +801,19 @@ function App() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="bg-gradient-to-r from-purple-500 to-pink-500 mt-8 border-t-4 border-yellow-400">
-        <div className="container mx-auto px-4 py-3">
-          <p className="text-center text-white text-xs font-bold">
-            ✨ Akshara - Making Reading Fun with AI Magic! 🎉
-          </p>
-        </div>
-      </footer>
+            </>
+          )}
+
+          {/* Footer */}
+          <footer className="bg-gradient-to-r from-purple-500 to-pink-500 mt-8 border-t-4 border-yellow-400">
+            <div className="container mx-auto px-4 py-3">
+              <p className="text-center text-white text-xs font-bold">
+                ✨ Akshara - Making Reading Fun with AI Magic! 🎉
+              </p>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   );
 }
