@@ -50,6 +50,10 @@ reports_collection = db['reports']
 passages_collection = db['passages']
 users_collection = db['users']
 
+# Titles to hide from the default builtin passages list (case-insensitive)
+# Add temporary removals here (e.g. 'my bag')
+BLACKLISTED_TITLES = ["my bag"]
+
 # Check for ffmpeg and set environment variable
 ffmpeg_path = shutil.which('ffmpeg')
 if not ffmpeg_path:
@@ -560,7 +564,8 @@ def get_passages():
                 "level": level,
                 "title": title,
                 "text": text,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.utcnow(),
+                "source": "custom"
             }
 
             result = passages_collection.insert_one(passage)
@@ -568,9 +573,14 @@ def get_passages():
             
             return jsonify({"success": True, "passage": passage}), 201
 
-        else:  # GET method
+        else:  # GET method -> return only builtin / non-custom passages
             passages = []
-            for passage in passages_collection.find():
+            # Exclude user-uploaded custom passages from the default list
+            for passage in passages_collection.find({"$or": [{"source": {"$exists": False}}, {"source": {"$ne": "custom"}}]}):
+                title = (passage.get('title') or '').strip().lower()
+                # Skip blacklisted titles (temporary removal)
+                if title in BLACKLISTED_TITLES:
+                    continue
                 passage['_id'] = str(passage['_id'])
                 passages.append(passage)
             return jsonify(passages)
@@ -591,6 +601,21 @@ def get_reports():
                 report['passage_id'] = str(report['passage_id'])
             reports.append(report)
         return jsonify(reports)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/passages/custom', methods=['GET'])
+def get_custom_passages():
+    """
+    Fetches user-uploaded custom passages only.
+    """
+    try:
+        passages = []
+        for passage in passages_collection.find({"source": "custom"}):
+            passage['_id'] = str(passage['_id'])
+            passages.append(passage)
+        return jsonify(passages)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

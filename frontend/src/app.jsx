@@ -427,6 +427,8 @@ function App() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
   const [showUploadPassage, setShowUploadPassage] = useState(false);
+  const [customPassages, setCustomPassages] = useState([]);
+  const [selectedCustomPassageId, setSelectedCustomPassageId] = useState(null);
   
   // Student information state
   const [studentName, setStudentName] = useState('');
@@ -451,8 +453,25 @@ function App() {
     }
   };
 
+  const fetchCustomPassages = async () => {
+    try {
+      const resp = await axios.get(`${API_URL}/passages/custom`);
+      setCustomPassages(resp.data || []);
+      if (resp.data && resp.data.length > 0) {
+        // if no custom selected yet, default to first custom
+        if (!selectedCustomPassageId) {
+          setSelectedCustomPassageId(resp.data[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching custom passages:', err);
+    }
+  };
+
   useEffect(() => {
     fetchPassages();
+    // fetch custom passages as well
+    fetchCustomPassages();
   }, []);
 
   // Timer effect
@@ -768,7 +787,7 @@ function App() {
                 </div>
                 <select
                   value={selectedPassageId || ''}
-                  onChange={(e) => setSelectedPassageId(e.target.value)}
+                  onChange={(e) => { setSelectedPassageId(e.target.value); setSelectedCustomPassageId(null); }}
                   disabled={isRecording || isLoading}
                   className={`w-full px-3 py-2 border ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-white border-purple-300 text-gray-900'} rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm shadow-sm transition-colors`}
                 >
@@ -778,6 +797,28 @@ function App() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Custom Passages (separate section) */}
+              <div className={`mt-4 ${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-700 border-gray-700' : 'bg-white border-gray-100'} rounded-2xl border p-4 shadow-sm transition-colors`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`text-sm font-bold ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Custom Passages</h3>
+                  <button onClick={() => setShowUploadPassage(true)} className="text-xs text-pink-600 font-semibold underline">Upload</button>
+                </div>
+                {customPassages.length === 0 ? (
+                  <div className="text-xs text-gray-500">No custom passages yet. Teachers can upload passages.</div>
+                ) : (
+                  <select
+                    value={selectedCustomPassageId || ''}
+                    onChange={(e) => { setSelectedCustomPassageId(e.target.value); setSelectedPassageId(e.target.value); }}
+                    disabled={isRecording || isLoading}
+                    className={`w-full px-3 py-2 border ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm shadow-sm transition-colors`}
+                  >
+                    {customPassages.map((p) => (
+                      <option key={p._id} value={p._id}>{p.level} - {p.title || 'Untitled'}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Recording Controls */}
@@ -1150,7 +1191,7 @@ function App() {
                 </button>
                 <UploadPassage 
                   onClose={() => setShowUploadPassage(false)} 
-                  onPassageAdded={fetchPassages}
+                  onPassageAdded={fetchCustomPassages}
                 />
               </div>
             </div>

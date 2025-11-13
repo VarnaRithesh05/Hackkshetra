@@ -10,22 +10,26 @@ passages_data = [
     {
         "level": "Level 1",
         "title": "My Cat",
-        "text": "This is my home. My home is nice. I have a cat. My cat is fat. My cat likes to sit on a mat. A rat ran by my cat. The cat ran at the rat."
+        "text": "This is my home. My home is nice. I have a cat. My cat is fat. My cat likes to sit on a mat. A rat ran by my cat. The cat ran at the rat.",
+        "source": "builtin"
     },
     {
         "level": "Level 2",
         "title": "The Big Park",
-        "text": "We went to the big park on a sunny day. I can run and jump. My friend has a red ball. We like to play catch with the ball. We saw a dog run after a stick. It is fun at the park."
+        "text": "We went to the big park on a sunny day. I can run and jump. My friend has a red ball. We like to play catch with the ball. We saw a dog run after a stick. It is fun at the park.",
+        "source": "builtin"
     },
     {
         "level": "Level 3",
         "title": "A Trip to the Store",
-        "text": "My mother and I went to the store. We needed to buy food. We got apples, bread, and milk. The apples were red and shiny. I helped put the food in the cart. On the way home, we saw a fire truck. It was very loud and red."
+        "text": "My mother and I went to the store. We needed to buy food. We got apples, bread, and milk. The apples were red and shiny. I helped put the food in the cart. On the way home, we saw a fire truck. It was very loud and red.",
+        "source": "builtin"
     },
     {
         "level": "Level 4",
         "title": "The Solar System",
-        "text": "The Earth is a planet. It moves around the sun. There are eight planets in our solar system. Mercury is the closest to the sun and is very hot. Jupiter is the largest planet. People have built spaceships to explore space. One day, people might travel to other planets."
+        "text": "The Earth is a planet. It moves around the sun. There are eight planets in our solar system. Mercury is the closest to the sun and is very hot. Jupiter is the largest planet. People have built spaceships to explore space. One day, people might travel to other planets.",
+        "source": "builtin"
     }
 ]
 
