@@ -3,7 +3,7 @@
 
 import difflib
 import json
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson.objectid import ObjectId
@@ -14,8 +14,20 @@ import warnings
 import wave
 import subprocess
 import shutil
+import base64
+import io
+import requests
 from werkzeug.security import generate_password_hash, check_password_hash
 warnings.filterwarnings('ignore')
+
+# TTS imports
+try:
+    from gtts import gTTS
+    TTS_AVAILABLE = True
+    print("✓ gTTS available for text-to-speech")
+except ImportError:
+    TTS_AVAILABLE = False
+    print("⚠ gTTS not installed. Install with: pip install gtts")
 
 # Configure FFmpeg BEFORE importing transformers
 try:
@@ -37,18 +49,42 @@ CORS(app)
 
 # Database Connection
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-client = MongoClient(MONGO_URI)
-try:
-    client.server_info()
-    print("✓ MongoDB connection successful.")
-except Exception as e:
-    print(f"✗ Error connecting to MongoDB: {e}")
-    print("  Please ensure MongoDB is running.")
+db = None
+reports_collection = None
+passages_collection = None
+users_collection = None
+mongo_connected = False
 
-db = client['akshara']
-reports_collection = db['reports']
-passages_collection = db['passages']
-users_collection = db['users']
+try:
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client.server_info()
+    db = client['akshara']
+    reports_collection = db['reports']
+    passages_collection = db['passages']
+    users_collection = db['users']
+    mongo_connected = True
+    print("✓ MongoDB connection successful.")
+    
+    # Check if passages collection is empty and seed it
+    passage_count = passages_collection.count_documents({})
+    if passage_count == 0:
+        print("📚 Seeding passages collection with default stories...")
+        default_passages = [
+            {"level": "Grade 1", "title": "The Cat", "text": "The cat sat on the mat. The cat was fat. The cat wore a hat."},
+            {"level": "Grade 2", "title": "The Fox", "text": "The quick brown fox jumps over the lazy dog. The fox runs fast in the woods."},
+            {"level": "Grade 3", "title": "Reading is Fun", "text": "Reading helps us learn new things and explore different worlds. Books take us on amazing adventures."},
+            {"level": "Grade 4", "title": "The Ocean", "text": "The ocean is home to many wonderful creatures. Dolphins swim gracefully through the blue water. Colorful fish dart between coral reefs."},
+            {"level": "Grade 5", "title": "Space Adventure", "text": "The astronauts prepared for their journey to the stars. They checked their equipment carefully before entering the spacecraft. The mission would take them to explore distant planets and galaxies."}
+        ]
+        passages_collection.insert_many(default_passages)
+        print(f"✓ Successfully seeded {len(default_passages)} passages into MongoDB")
+    else:
+        print(f"✓ Found {passage_count} passages in MongoDB")
+        
+except Exception as e:
+    print(f"✗ MongoDB connection failed: {e}")
+    print("  ⚠ Running without MongoDB - reports won't be saved")
+    mongo_connected = False
 
 # Check for ffmpeg and set environment variable
 ffmpeg_path = shutil.which('ffmpeg')
@@ -72,8 +108,13 @@ print("Loading ASR (Whisper) model. This may take a moment...")
 print("⏳ First time: This will download ~290MB model...")
 try:
     # Import transformers after setting ffmpeg path
-    asr_pipeline = pipeline("automatic-speech-recognition", model="openai/whisper-base.en")
-    print("✓ ASR Model loaded successfully.")
+    # Enable word timestamps for word-level analysis
+    asr_pipeline = pipeline(
+        "automatic-speech-recognition", 
+        model="openai/whisper-base.en",
+        return_timestamps="word"  # Enable word-level timestamps
+    )
+    print("✓ ASR Model loaded successfully with word-level timestamps.")
 except Exception as e:
     print(f"✗ Error loading ASR model: {e}")
     asr_pipeline = None
@@ -290,6 +331,77 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     }
 
 
+def build_word_analysis(ground_truth_words, asr_words, word_chunks, sequence_matcher):
+    """
+    Build word-level analysis for interactive playback.
+    Maps each ground truth word to its status, timestamps, and student pronunciation.
+    """
+    word_analysis = []
+    
+    # Create a mapping of asr words to their timestamps
+    asr_word_map = {}
+    for chunk in word_chunks:
+        word = chunk.get("text", "").strip().lower()
+        timestamp = chunk.get("timestamp", [0, 0])
+        if word:
+            if word not in asr_word_map:
+                asr_word_map[word] = []
+            asr_word_map[word].append({
+                "start": timestamp[0] if timestamp[0] is not None else 0,
+                "end": timestamp[1] if timestamp[1] is not None else 0
+            })
+    
+    # Analyze each ground truth word
+    asr_index = 0
+    for i, gt_word in enumerate(ground_truth_words):
+        word_data = {
+            "index": i,
+            "word": gt_word,
+            "status": "skipped",  # correct, incorrect, approximate, skipped
+            "confidence": 0,
+            "student_start": None,
+            "student_end": None,
+            "student_word": None
+        }
+        
+        # Find matching operation in sequence matcher
+        for tag, i1, i2, j1, j2 in sequence_matcher.get_opcodes():
+            if i >= i1 and i < i2:
+                if tag == 'equal':
+                    # Correct word
+                    word_data["status"] = "correct"
+                    word_data["confidence"] = 100
+                    if j1 + (i - i1) < len(asr_words):
+                        student_word = asr_words[j1 + (i - i1)]
+                        word_data["student_word"] = student_word
+                        # Get timestamp
+                        if student_word in asr_word_map and asr_word_map[student_word]:
+                            timestamps = asr_word_map[student_word].pop(0)
+                            word_data["student_start"] = timestamps["start"]
+                            word_data["student_end"] = timestamps["end"]
+                elif tag == 'replace':
+                    # Mispronounced word
+                    word_data["status"] = "incorrect"
+                    word_data["confidence"] = 30
+                    if j1 + (i - i1) < len(asr_words):
+                        student_word = asr_words[j1 + (i - i1)]
+                        word_data["student_word"] = student_word
+                        # Get timestamp
+                        if student_word in asr_word_map and asr_word_map[student_word]:
+                            timestamps = asr_word_map[student_word].pop(0)
+                            word_data["student_start"] = timestamps["start"]
+                            word_data["student_end"] = timestamps["end"]
+                elif tag == 'delete':
+                    # Skipped word
+                    word_data["status"] = "skipped"
+                    word_data["confidence"] = 0
+                break
+        
+        word_analysis.append(word_data)
+    
+    return word_analysis
+
+
 def analyze_audio_simple(audio_path, ground_truth_text):
     """
     Simplified analysis function
@@ -397,6 +509,9 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     punctuation_analysis = calculate_punctuation_awareness(word_chunks, ground_truth_text)
     
     print("✅ Analysis complete.")
+    
+    # Build word-level analysis for interactive playback
+    word_analysis = build_word_analysis(ground_truth_words, asr_words, word_chunks, s)
 
     return {
         "wcpm": round(wcpm, 2),
@@ -419,7 +534,9 @@ def analyze_audio_simple(audio_path, ground_truth_text):
             "total_pauses_detected": punctuation_analysis["total_pauses_detected"],
             "pause_locations": punctuation_analysis["pause_locations"]
         },
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
+        "word_analysis": word_analysis,  # New: word-level data for interactive playback
+        "audio_path": audio_path  # Store audio path for word extraction
     }
 
 
@@ -524,12 +641,21 @@ def get_passages():
     Fetches all reading passages from the database.
     """
     try:
+        print("📖 GET /api/passages - Fetching passages...")
+        
+        if not mongo_connected or passages_collection is None:
+            print("⚠ MongoDB not available, returning error")
+            return jsonify({"error": "Database not connected. Please check MongoDB."}), 500
+        
         passages = []
         for passage in passages_collection.find():
             passage['_id'] = str(passage['_id'])
             passages.append(passage)
+        
+        print(f"✓ Returning {len(passages)} passages from MongoDB")
         return jsonify(passages)
     except Exception as e:
+        print(f"✗ Error in get_passages: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -867,6 +993,119 @@ def get_reading_groups():
 def serve():
     """Serve the React app"""
     return send_from_directory(app.static_folder, 'index.html')
+
+
+
+
+@app.route('/api/word/pronounce/<word>', methods=['GET'])
+def pronounce_word(word):
+    """
+    Generate TTS pronunciation for a word
+    """
+    if not TTS_AVAILABLE:
+        return jsonify({"error": "TTS not available"}), 500
+    
+    try:
+        # Generate speech using gTTS
+        tts = gTTS(text=word, lang='en', slow=False)
+        
+        # Save to bytes buffer
+        mp3_fp = io.BytesIO()
+        tts.write_to_fp(mp3_fp)
+        mp3_fp.seek(0)
+        
+        return send_file(mp3_fp, mimetype='audio/mpeg')
+    except Exception as e:
+        print(f"✗ TTS Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/word/image/<word>', methods=['GET'])
+def get_word_image(word):
+    """
+    Get a pictorial representation of a word.
+    Uses Noun Project API or similar. For now, returns a placeholder.
+    """
+    try:
+        # For demo: Use DuckDuckGo Image Search or Unsplash API
+        # Simplified: Return a simple icon URL from a CDN
+        # You can integrate with APIs like:
+        # - Noun Project API
+        # - Unsplash API
+        # - Local image database
+        
+        # For now, return emoji-based representation or placeholder
+        word_lower = word.lower()
+        
+        # Simple word-to-emoji mapping for common words
+        emoji_map = {
+            "cat": "🐱", "dog": "🐶", "fox": "🦊", "bird": "🐦",
+            "book": "📖", "read": "📚", "sun": "☀️", "moon": "🌙",
+            "tree": "🌳", "flower": "🌸", "water": "💧", "ocean": "🌊",
+            "star": "⭐", "rocket": "🚀", "astronaut": "👨‍🚀",
+            "dolphin": "🐬", "fish": "🐠", "coral": "🪸",
+            "hat": "🎩", "mat": "🧘", "jump": "🤸", "run": "🏃"
+        }
+        
+        emoji = emoji_map.get(word_lower, "📝")  # Default to pencil emoji
+        
+        return jsonify({
+            "word": word,
+            "emoji": emoji,
+            "imageUrl": f"https://via.placeholder.com/150?text={emoji}",
+            "definition": f"The word '{word}'"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/word/extract-audio', methods=['POST'])
+def extract_word_audio():
+    """
+    Extract a specific word's audio segment from the full recording
+    """
+    try:
+        data = request.json
+        audio_path = data.get('audio_path')
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        
+        if not all([audio_path, start_time is not None, end_time is not None]):
+            return jsonify({"error": "Missing required parameters"}), 400
+        
+        if not os.path.exists(audio_path):
+            return jsonify({"error": "Audio file not found"}), 404
+        
+        # Load the full audio
+        audio_data, sample_rate = sf.read(audio_path)
+        
+        # Extract the segment
+        start_sample = int(start_time * sample_rate)
+        end_sample = int(end_time * sample_rate)
+        
+        # Ensure bounds
+        start_sample = max(0, start_sample)
+        end_sample = min(len(audio_data), end_sample)
+        
+        word_audio = audio_data[start_sample:end_sample]
+        
+        # Save to temporary file and return
+        temp_path = f"temp_word_{os.getpid()}.wav"
+        sf.write(temp_path, word_audio, sample_rate)
+        
+        # Read as base64
+        with open(temp_path, 'rb') as f:
+            audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+        
+        # Clean up
+        os.remove(temp_path)
+        
+        return jsonify({
+            "audio": f"data:audio/wav;base64,{audio_base64}"
+        })
+    except Exception as e:
+        print(f"✗ Word extraction error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':

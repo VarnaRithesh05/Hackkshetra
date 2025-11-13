@@ -6,6 +6,7 @@ import ForgotPassword from './components/Auth/ForgotPassword';
 import LandingPage from './components/LandingPage';
 import Profile from './components/Profile';
 import Dashboard from './components/Dashboard';
+import InteractiveWordPlayback from './components/InteractiveWordPlayback';
 
 // Base URL for your Flask API
 const API_URL = 'http://127.0.0.1:5000/api';
@@ -439,7 +440,9 @@ function App() {
   useEffect(() => {
     const fetchPassages = async () => {
       try {
+        console.log("Fetching passages from:", `${API_URL}/passages`);
         const response = await axios.get(`${API_URL}/passages`);
+        console.log("Passages received:", response.data);
         setPassages(response.data);
         if (response.data.length > 0) {
           setSelectedPassageId(response.data[0]._id);
@@ -755,15 +758,24 @@ function App() {
                 <select
                   value={selectedPassageId || ''}
                   onChange={(e) => setSelectedPassageId(e.target.value)}
-                  disabled={isRecording || isLoading}
+                  disabled={isRecording || isLoading || passages.length === 0}
                   className={`w-full px-3 py-2 border ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-white border-purple-300 text-gray-900'} rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-purple-400 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm shadow-sm transition-colors`}
                 >
-                  {passages.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.level} - {p.title || 'Untitled'}
-                    </option>
-                  ))}
+                  {passages.length === 0 ? (
+                    <option value="">No stories available - Check MongoDB connection</option>
+                  ) : (
+                    passages.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.level} - {p.title || 'Untitled'}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {passages.length === 0 && (
+                  <p className="mt-2 text-xs text-red-600 font-semibold">
+                    ⚠️ Unable to load stories. Please ensure MongoDB is running and try refreshing the page.
+                  </p>
+                )}
               </div>
 
               {/* Recording Controls */}
@@ -917,6 +929,15 @@ function App() {
                     </div>
                   </div>
 
+                  {/* Interactive Word Playback */}
+                  {report.word_analysis && report.word_analysis.length > 0 && (
+                    <InteractiveWordPlayback 
+                      wordAnalysis={report.word_analysis}
+                      passageText={selectedPassage?.text || ''}
+                      audioPath={report.audio_path}
+                    />
+                  )}
+
                   {/* Punctuation Awareness - Pro-Level Metric */}
                   {report.punctuation_score !== undefined && (
                     <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl shadow-lg p-6 border-2 border-cyan-300">
@@ -1029,21 +1050,6 @@ function App() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Word-by-Word Comparison - Interactive Highlighting */}
-                  {report.opcodes && report.ground_truth_words && report.asr_words && (
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow-lg p-4 border-2 border-indigo-300">
-                      <h3 className="text-base font-black text-indigo-700 mb-3 flex items-center">
-                        <span className="text-2xl mr-2">🔍</span>
-                        Interactive Word Analysis
-                      </h3>
-                      <InteractivePassageHighlight 
-                        groundTruthWords={report.ground_truth_words}
-                        asrWords={report.asr_words}
-                        opcodes={report.opcodes}
-                      />
                     </div>
                   )}
                 </div>
