@@ -309,12 +309,9 @@ function App() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState('dashboard');
-  const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
   const [audioStream, setAudioStream] = useState(null);
-  const [speechDetected, setSpeechDetected] = useState(false);
-  const [showSpeechWarning, setShowSpeechWarning] = useState(false);
   
   // Student information state
   const [studentName, setStudentName] = useState('');
@@ -387,20 +384,20 @@ function App() {
     };
   }, [isRecording]);
 
-  // Fetch history
-  const fetchHistory = async () => {
-    try {
-      setIsLoading(true);
-      const response = await axios.get(`${API_URL}/reports`);
-      setHistory(response.data);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching history:", err);
-      setError("Could not load report history.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Fetch history (keeping for future use)
+  // const fetchHistory = async () => {
+  //   try {
+  //     setIsLoading(true);
+  //     const response = await axios.get(`${API_URL}/reports`);
+  //     setHistory(response.data);
+  //     setError(null);
+  //   } catch (err) {
+  //     console.error("Error fetching history:", err);
+  //     setError("Could not load report history.");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   // Fetch students
   const fetchStudents = async () => {
@@ -457,7 +454,16 @@ function App() {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request audio with noise suppression and echo cancellation
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100
+        }
+      });
+      
       setAudioStream(stream); // Store stream for real-time feedback
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       audioChunksRef.current = [];
@@ -472,43 +478,6 @@ function App() {
       setReport(null);
       setError(null);
       setHasRecording(false);
-      setSpeechDetected(false);
-      setShowSpeechWarning(false);
-      
-      // Set up audio analysis for speech detection
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const analyser = audioContext.createAnalyser();
-      const microphone = audioContext.createMediaStreamSource(stream);
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
-      microphone.connect(analyser);
-      analyser.fftSize = 2048;
-      
-      let speechDetectedFlag = false;
-      const speechThreshold = 40; // Adjust sensitivity (lower = more sensitive)
-      const silenceThreshold = 20; // Background noise threshold
-      
-      const checkSpeech = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        
-        // Detect meaningful speech (above background noise)
-        if (average > speechThreshold) {
-          speechDetectedFlag = true;
-          setSpeechDetected(true);
-        }
-      };
-      
-      const speechCheckInterval = setInterval(checkSpeech, 100);
-      
-      // After 5 seconds, check if speech was detected
-      setTimeout(() => {
-        clearInterval(speechCheckInterval);
-        if (!speechDetectedFlag) {
-          setShowSpeechWarning(true);
-        }
-        audioContext.close();
-      }, 5000);
       
     } catch (err) {
       console.error("Error starting recording:", err);
@@ -524,7 +493,6 @@ function App() {
     }
     setIsRecording(false);
     setAudioStream(null);
-    setShowSpeechWarning(false);
   };
 
   // Analysis function
@@ -739,69 +707,49 @@ function App() {
                 )}
               </div>
               <div className="grid md:grid-cols-3 gap-6">
-                <div className="relative md:col-span-1">
+                <div className="md:col-span-1">
                   <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
                     Name <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={studentName}
-                    onChange={(e) => {
-                        setStudentName(e.target.value);
-                        const filtered = studentsList.filter(s => 
-                          s.name.toLowerCase().includes(e.target.value.toLowerCase())
-                        );
-                        setFilteredStudents(filtered);
-                        setShowStudentDropdown(e.target.value.length > 0 && filtered.length > 0);
-                      }}
-                      onFocus={(e) => {
-                        if (e.target.value.length > 0) {
-                          const filtered = studentsList.filter(s => 
-                            s.name.toLowerCase().includes(e.target.value.toLowerCase())
-                          );
-                          setFilteredStudents(filtered);
-                          setShowStudentDropdown(filtered.length > 0);
+                    onChange={async (e) => {
+                      const selectedName = e.target.value;
+                      setStudentName(selectedName);
+                      
+                      if (selectedName) {
+                        // Find the selected student to populate grade and ID
+                        const student = studentsList.find(s => s.name === selectedName);
+                        if (student) {
+                          setStudentGrade(student.grade || '');
+                          setStudentId(student.student_id || '');
+                          
+                          // Fetch recommended passage for this student
+                          try {
+                            const response = await axios.get(`${API_URL}/students/${encodeURIComponent(student.name)}/recommended-passage`);
+                            if (response.data.passage) {
+                              setSelectedPassageId(response.data.passage._id);
+                              console.log(`📚 Auto-selected Level ${response.data.current_level} passage for ${student.name}`);
+                            }
+                          } catch (err) {
+                            console.error('Error fetching recommended passage:', err);
+                          }
                         }
-                      }}
+                      } else {
+                        setStudentGrade('');
+                        setStudentId('');
+                      }
+                    }}
                     disabled={isRecording || isLoading}
-                    placeholder="Type student's name or select from list"
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
-                    {/* Student Dropdown */}
-                    {showStudentDropdown && filteredStudents.length > 0 && (
-                      <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-blue-600' : 'bg-white border-blue-300'} border-2 rounded-xl shadow-lg max-h-48 overflow-y-auto`}>
-                        {filteredStudents.map((student) => (
-                          <button
-                            key={student._id}
-                            type="button"
-                            onClick={async () => {
-                              setStudentName(student.name);
-                              setStudentGrade(student.grade || '');
-                              setStudentId(student.student_id || '');
-                              setShowStudentDropdown(false);
-                              
-                              // Fetch recommended passage for this student
-                              try {
-                                const response = await axios.get(`${API_URL}/students/${encodeURIComponent(student.name)}/recommended-passage`);
-                                if (response.data.passage) {
-                                  setSelectedPassageId(response.data.passage._id);
-                                  console.log(`📚 Auto-selected Level ${response.data.current_level} passage for ${student.name}`);
-                                }
-                              } catch (err) {
-                                console.error('Error fetching recommended passage:', err);
-                              }
-                            }}
-                            className={`w-full text-left px-4 py-2 ${darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-blue-50 text-gray-900'} transition-colors flex items-center justify-between`}
-                          >
-                            <div>
-                              <div className="font-semibold">{student.name}</div>
-                              {student.grade && <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Grade: {student.grade}</div>}
-                            </div>
-                            {student.student_id && <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>ID: {student.student_id}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                  >
+                    <option value="">Select a student...</option>
+                    {studentsList.map((student) => (
+                      <option key={student._id} value={student.name}>
+                        {student.name} {student.grade ? `(Grade ${student.grade})` : ''} {student.student_id ? `- ID: ${student.student_id}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
@@ -943,22 +891,6 @@ function App() {
                     <p className="text-sm font-semibold">⏰ Time's up! Stop recording.</p>
                   </div>
                 )}
-
-                {showSpeechWarning && isRecording && (
-                  <div className={`mt-3 p-3 ${darkMode ? 'bg-red-900 border-red-600 text-red-200' : 'bg-red-50 border-red-300 text-red-800'} border-2 rounded-xl text-center transition-colors animate-pulse`}>
-                    <p className="text-sm font-bold mb-2">🎤 No speech detected!</p>
-                    <p className="text-xs mb-2">Please make sure the student is speaking clearly into the microphone, or check for background noise.</p>
-                    <button
-                      onClick={() => {
-                        stopRecording();
-                        setTimeout(() => startRecording(), 500);
-                      }}
-                      className={`mt-2 px-4 py-2 rounded-full font-semibold text-xs ${darkMode ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-red-600 hover:bg-red-700 text-white'} transition-colors`}
-                    >
-                      Restart Recording
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1035,7 +967,6 @@ function App() {
                     const prosody = report.prosody_score || 0;
                     const canLevelUp = accuracy >= 90 && prosody >= 80;
                     const shouldLevelDown = accuracy < 70 || prosody < 50;
-                    const shouldRetry = !canLevelUp && !shouldLevelDown;
                     
                     return (
                       <div className={`rounded-2xl border-2 p-4 shadow-lg ${
@@ -1150,6 +1081,114 @@ function App() {
                   </div>
                 </div>
 
+                {/* 🎯 PHONETIC MISCUE ENGINE - "Good Errors" Display */}
+                {report.phonetic_matches > 0 && report.phonetic_details && report.phonetic_details.length > 0 && (
+                  <div className={`${darkMode ? 'bg-gradient-to-br from-green-900 to-emerald-900 border-green-700' : 'bg-white border-green-200'} rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-2xl">🎯</span>
+                      <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Phonetic Miscue Analysis
+                        <span className="ml-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          AI POWERED
+                        </span>
+                      </h2>
+                    </div>
+
+                    {/* Summary Stats */}
+                    <div className="grid md:grid-cols-3 gap-3 mb-4">
+                      <div className={`${darkMode ? 'bg-green-800/50 border-green-600' : 'bg-green-50 border-green-200'} rounded-xl p-4 text-center border-2`}>
+                        <div className={`text-3xl font-black ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                          {report.exact_matches || 0}
+                        </div>
+                        <p className={`text-xs font-semibold mt-1 ${darkMode ? 'text-green-300' : 'text-green-700'}`}>Perfect Matches</p>
+                      </div>
+                      
+                      <div className={`${darkMode ? 'bg-yellow-800/50 border-yellow-600' : 'bg-yellow-50 border-yellow-200'} rounded-xl p-4 text-center border-2`}>
+                        <div className={`text-3xl font-black ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+                          {report.phonetic_matches}
+                        </div>
+                        <p className={`text-xs font-semibold mt-1 ${darkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>Good Errors</p>
+                        <p className={`text-[10px] ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>(Applying Phonics)</p>
+                      </div>
+
+                      <div className={`${darkMode ? 'bg-red-800/50 border-red-600' : 'bg-red-50 border-red-200'} rounded-xl p-4 text-center border-2`}>
+                        <div className={`text-3xl font-black ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                          {report.miscue_analysis?.substitution_errors || 0}
+                        </div>
+                        <p className={`text-xs font-semibold mt-1 ${darkMode ? 'text-red-300' : 'text-red-700'}`}>True Errors</p>
+                      </div>
+                    </div>
+
+                    {/* What This Means */}
+                    <div className={`${darkMode ? 'bg-green-900/50 border-green-700' : 'bg-green-50 border-green-200'} rounded-xl p-4 mb-4 border-2`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-xl">💡</span>
+                        <div>
+                          <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-green-300' : 'text-green-800'}`}>What are "Good Errors"?</p>
+                          <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            When a student says "boot" instead of "boat", they're not guessing—they're <strong>applying phonics rules!</strong> 
+                            Our AI Phonetic Miscue Engine identifies these "good errors" where the word <em>sounds similar</em> to the correct word. 
+                            This shows the student understands <strong>sound-letter relationships</strong> and just needs practice with specific patterns.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Teaching Moments List */}
+                    <div className={`${darkMode ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-4`}>
+                      <h3 className={`text-sm font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        🎓 Teaching Moments ({report.phonetic_details.length})
+                      </h3>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {report.phonetic_details.map((detail, idx) => (
+                          <div key={idx} className={`${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'} border rounded-lg p-3`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                                  detail.confidence >= 90 ? 'bg-green-500 text-white' :
+                                  detail.confidence >= 70 ? 'bg-yellow-500 text-white' :
+                                  'bg-orange-500 text-white'
+                                }`}>
+                                  {detail.confidence}% Match
+                                </span>
+                                <span className={`text-[10px] ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {detail.type === 'strong_phonetic' ? '⭐ Strong' :
+                                   detail.type === 'moderate_phonetic' ? '⚡ Moderate' :
+                                   '🔹 Weak'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className={`font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{detail.said}</span>
+                              <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>→</span>
+                              <span className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{detail.expected}</span>
+                            </div>
+                            <p className={`text-[10px] mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              💬 Student applied phonics rules, sounds are similar
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Teacher Action */}
+                    <div className={`${darkMode ? 'bg-blue-900/50 border-blue-700' : 'bg-blue-50 border-blue-200'} rounded-xl p-4 mt-4 border-2`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg">👨‍🏫</span>
+                        <div>
+                          <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>Recommended Next Steps:</p>
+                          <ul className={`text-xs leading-relaxed space-y-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <li>✅ Praise the student for applying phonics correctly</li>
+                            <li>📝 Practice vowel sounds and sight word recognition</li>
+                            <li>🗣️ Focus on minimal pairs (boot/boat, ship/sheep)</li>
+                            <li>🎯 These are <strong>teachable moments</strong>, not failures!</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Punctuation Awareness - Full Width Below */}
                 {report.punctuation_score !== undefined && (
                   <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
@@ -1251,6 +1290,112 @@ function App() {
                               When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, not just pronouncing words.
                             </p>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Expression & Tone Analysis - NEW! */}
+                {report.expression_score !== undefined && report.expression_score !== "N/A" && report.expression_score !== "Error" && (
+                  <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-2xl">🎤</span>
+                      <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Expression & Tone
+                        <span className="ml-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          NEW
+                        </span>
+                      </h2>
+                    </div>
+
+                    {/* Score and Engagement Level */}
+                    <div className="grid md:grid-cols-2 gap-4 mb-4">
+                      {/* Expression Score */}
+                      <div className={`${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-gray-50 border-gray-200'} rounded-xl p-5 text-center border-2 transition-colors shadow-sm`}>
+                        <div className="text-4xl font-black mb-2" style={{
+                          background: 'linear-gradient(135deg, #ec4899 0%, #a855f7 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent'
+                        }}>
+                          {Math.round(report.expression_score)}/100
+                        </div>
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Expression Score</p>
+                      </div>
+
+                      {/* Emotional Engagement */}
+                      <div className={`${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-gray-50 border-gray-200'} rounded-xl p-5 text-center border-2 transition-colors shadow-sm`}>
+                        <div className={`text-2xl font-black mb-2 ${
+                          report.expression_details?.emotional_engagement === 'Highly Expressive' ? 'text-green-500' :
+                          report.expression_details?.emotional_engagement === 'Expressive' ? 'text-blue-500' :
+                          report.expression_details?.emotional_engagement === 'Moderate' ? 'text-yellow-500' :
+                          report.expression_details?.emotional_engagement === 'Somewhat Flat' ? 'text-orange-500' :
+                          'text-red-500'
+                        }`}>
+                          {report.expression_details?.emotional_engagement || 'N/A'}
+                        </div>
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Engagement Level</p>
+                      </div>
+                    </div>
+
+                    {/* Voice Metrics */}
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      {/* Pitch Variation */}
+                      <div className={`flex flex-col items-center justify-center rounded-lg p-3 border ${darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} transition-colors`}>
+                        <span className="text-xl mb-1">🎵</span>
+                        <div className={`text-xl font-black ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                          {Math.round(report.expression_details?.pitch_variation || 0)}%
+                        </div>
+                        <span className={`font-bold text-[10px] text-center ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Pitch<br/>Variation</span>
+                      </div>
+                      
+                      {/* Energy Variation */}
+                      <div className={`flex flex-col items-center justify-center rounded-lg p-3 border ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'} transition-colors`}>
+                        <span className="text-xl mb-1">⚡</span>
+                        <div className={`text-xl font-black ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                          {Math.round(report.expression_details?.energy_variation || 0)}%
+                        </div>
+                        <span className={`font-bold text-[10px] text-center ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Energy<br/>Dynamics</span>
+                      </div>
+
+                      {/* Voice Pitch */}
+                      <div className={`flex flex-col items-center justify-center rounded-lg p-3 border ${darkMode ? 'bg-purple-900/30 border-purple-700' : 'bg-purple-50 border-purple-200'} transition-colors`}>
+                        <span className="text-xl mb-1">🔊</span>
+                        <div className={`text-xl font-black ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                          {Math.round(report.expression_details?.avg_pitch_hz || 0)}
+                        </div>
+                        <span className={`font-bold text-[10px] text-center ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Avg Pitch<br/>(Hz)</span>
+                      </div>
+                    </div>
+
+                    {/* Reading Style Assessment */}
+                    <div className={`${darkMode ? 'bg-purple-900/50 border-purple-700' : 'bg-purple-50 border-purple-200'} rounded-xl p-4 border-2 transition-colors`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-xl">🎭</span>
+                        <div>
+                          <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>Reading Style:</p>
+                          <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {report.expression_details?.reading_style || 'Unable to analyze'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* What This Means */}
+                    <div className={`${darkMode ? 'bg-pink-900/50 border-pink-700' : 'bg-pink-50 border-pink-200'} rounded-xl p-4 mt-4 border-2 transition-colors`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-xl">💡</span>
+                        <div>
+                          <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-pink-300' : 'text-pink-800'}`}>What does this mean?</p>
+                          <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {report.expression_score >= 70
+                              ? "🌟 Fantastic! The student reads with great expression - their voice goes up and down naturally, showing they understand emotions and meaning in the text!"
+                              : report.expression_score >= 50
+                              ? "✅ Good! The student shows decent expression with some vocal variation. Encourage them to be even more expressive!"
+                              : report.expression_score >= 30
+                              ? "📖 Developing. The student has limited vocal expression. Practice reading with different emotions and character voices!"
+                              : "💡 Needs Practice. The reading sounds flat or monotone. Encourage acting out the story with different voices and emotions!"}
+                          </p>
                         </div>
                       </div>
                     </div>

@@ -29,6 +29,26 @@ except ImportError:
     TTS_AVAILABLE = False
     print("⚠ gTTS not installed. Install with: pip install gtts")
 
+# Audio analysis imports
+try:
+    import librosa
+    import numpy as np
+    LIBROSA_AVAILABLE = True
+    print("✓ librosa available for expression analysis")
+except ImportError:
+    LIBROSA_AVAILABLE = False
+    print("⚠ librosa not installed. Install with: pip install librosa")
+
+# Phonetic matching imports for Miscue Analysis
+try:
+    import phonetics
+    from metaphone import doublemetaphone
+    PHONETICS_AVAILABLE = True
+    print("✓ Phonetic Miscue Engine available")
+except ImportError:
+    PHONETICS_AVAILABLE = False
+    print("⚠ Phonetics library not installed. Install with: pip install phonetics metaphone")
+
 # Configure FFmpeg BEFORE importing transformers
 try:
     import imageio_ffmpeg
@@ -251,12 +271,38 @@ def build_word_analysis(ground_truth_words, asr_words, word_chunks, sequence_mat
                             word_data["student_start"] = timestamps["start"]
                             word_data["student_end"] = timestamps["end"]
                 elif tag == 'replace':
-                    # Mispronounced word
-                    word_data["status"] = "incorrect"
-                    word_data["confidence"] = 30
+                    # 🎯 PHONETIC MISCUE ENGINE - Advanced error analysis
                     if j1 + (i - i1) < len(asr_words):
                         student_word = asr_words[j1 + (i - i1)]
                         word_data["student_word"] = student_word
+                        
+                        # First: Check for exact equivalence (like "8" vs "eight")
+                        if words_match(gt_word, student_word):
+                            word_data["status"] = "correct"
+                            word_data["confidence"] = 100
+                            word_data["error_type"] = "none"
+                        else:
+                            # Second: Run Phonetic Miscue Engine
+                            phonetic_match = phonetic_similarity(gt_word, student_word)
+                            
+                            if phonetic_match['is_similar']:
+                                # PHONETIC MATCH - "Good Error"
+                                word_data["status"] = "phonetic_match"
+                                word_data["confidence"] = phonetic_match['confidence']
+                                word_data["error_type"] = "phonetic"
+                                word_data["phonetic_analysis"] = {
+                                    "match_type": phonetic_match['match_type'],
+                                    "algorithms": phonetic_match.get('algorithms', []),
+                                    "teaching_moment": True,
+                                    "note": f"Student applied phonics: '{student_word}' sounds like '{gt_word}'"
+                                }
+                                print(f"   🎯 PHONETIC MATCH: '{student_word}' → '{gt_word}' (Confidence: {phonetic_match['confidence']}%)")
+                            else:
+                                # True substitution error
+                                word_data["status"] = "incorrect"
+                                word_data["confidence"] = 30
+                                word_data["error_type"] = "substitution"
+                        
                         # Get timestamp
                         if student_word in asr_word_map and asr_word_map[student_word]:
                             timestamps = asr_word_map[student_word].pop(0)
@@ -271,6 +317,190 @@ def build_word_analysis(ground_truth_words, asr_words, word_chunks, sequence_mat
         word_analysis.append(word_data)
     
     return word_analysis
+
+
+def normalize_word(word):
+    """
+    Normalize words to handle common variations:
+    - Numbers to words (8 -> eight, 1 -> one)
+    - Words to numbers (eight -> 8, one -> 1)
+    - Common phonetic equivalents
+    - Remove punctuation
+    """
+    # Remove punctuation and convert to lowercase
+    word_clean = word.lower().strip().rstrip('.,!?;:')
+    
+    # Number to word mapping (both directions)
+    number_word_map = {
+        '0': 'zero', 'zero': '0',
+        '1': 'one', 'one': '1',
+        '2': 'two', 'two': '2',
+        '3': 'three', 'three': '3',
+        '4': 'four', 'four': '4',
+        '5': 'five', 'five': '5',
+        '6': 'six', 'six': '6',
+        '7': 'seven', 'seven': '7',
+        '8': 'eight', 'eight': '8',
+        '9': 'nine', 'nine': '9',
+        '10': 'ten', 'ten': '10',
+        '11': 'eleven', 'eleven': '11',
+        '12': 'twelve', 'twelve': '12',
+        '13': 'thirteen', 'thirteen': '13',
+        '14': 'fourteen', 'fourteen': '14',
+        '15': 'fifteen', 'fifteen': '15',
+        '16': 'sixteen', 'sixteen': '16',
+        '17': 'seventeen', 'seventeen': '17',
+        '18': 'eighteen', 'eighteen': '18',
+        '19': 'nineteen', 'nineteen': '19',
+        '20': 'twenty', 'twenty': '20',
+    }
+    
+    # Return list of possible normalized forms
+    variations = [word_clean]
+    
+    if word_clean in number_word_map:
+        variations.append(number_word_map[word_clean])
+    
+    return variations
+
+
+def words_match(word1, word2):
+    """
+    Check if two words match, considering variations like numbers/words.
+    Returns True if words are equivalent.
+    """
+    # Get all variations of both words
+    variations1 = normalize_word(word1)
+    variations2 = normalize_word(word2)
+    
+    # Check if any variation matches
+    for v1 in variations1:
+        for v2 in variations2:
+            if v1 == v2:
+                return True
+    
+    return False
+
+
+def phonetic_similarity(word1, word2):
+    """
+    🎯 PHONETIC MISCUE ENGINE
+    
+    Analyzes if two words sound similar using multiple phonetic algorithms.
+    This identifies "good errors" where students are applying phonics correctly.
+    
+    Examples:
+        - 'boot' vs 'boat' → Phonetically similar (good error)
+        - 'cat' vs 'dog' → Not similar (substitution error)
+        - 'running' vs 'runing' → Similar (spelling variation)
+    
+    Returns:
+        dict with similarity score and analysis
+    """
+    if not PHONETICS_AVAILABLE:
+        return {
+            'is_similar': False,
+            'confidence': 0,
+            'match_type': 'none',
+            'message': 'Phonetic engine not available'
+        }
+    
+    # Clean words
+    w1 = word1.lower().strip().rstrip('.,!?;:')
+    w2 = word2.lower().strip().rstrip('.,!?;:')
+    
+    # Exact match
+    if w1 == w2:
+        return {
+            'is_similar': True,
+            'confidence': 100,
+            'match_type': 'exact',
+            'algorithms': []
+        }
+    
+    matches = []
+    algorithms_used = []
+    
+    # 1. Soundex (American English phonetics)
+    try:
+        soundex1 = phonetics.soundex(w1)
+        soundex2 = phonetics.soundex(w2)
+        if soundex1 == soundex2:
+            matches.append('soundex')
+            algorithms_used.append(f"Soundex: {soundex1}")
+    except:
+        pass
+    
+    # 2. Metaphone (Better for English pronunciation)
+    try:
+        metaphone1 = phonetics.metaphone(w1)
+        metaphone2 = phonetics.metaphone(w2)
+        if metaphone1 == metaphone2:
+            matches.append('metaphone')
+            algorithms_used.append(f"Metaphone: {metaphone1}")
+    except:
+        pass
+    
+    # 3. Double Metaphone (Most accurate for English)
+    try:
+        dm1 = doublemetaphone(w1)
+        dm2 = doublemetaphone(w2)
+        # Check both primary and secondary encodings
+        if (dm1[0] == dm2[0] and dm1[0]) or (dm1[1] == dm2[1] and dm1[1]):
+            matches.append('double_metaphone')
+            algorithms_used.append(f"DoubleMetaphone: {dm1[0]}/{dm2[0]}")
+    except:
+        pass
+    
+    # 4. NYSIIS (New York State Identification and Intelligence System)
+    try:
+        nysiis1 = phonetics.nysiis(w1)
+        nysiis2 = phonetics.nysiis(w2)
+        if nysiis1 == nysiis2:
+            matches.append('nysiis')
+            algorithms_used.append(f"NYSIIS: {nysiis1}")
+    except:
+        pass
+    
+    # Calculate confidence based on number of algorithms that matched
+    num_matches = len(matches)
+    
+    if num_matches >= 3:
+        # 3+ algorithms agree → High confidence phonetic match
+        return {
+            'is_similar': True,
+            'confidence': 95,
+            'match_type': 'strong_phonetic',
+            'algorithms': algorithms_used,
+            'matches': matches
+        }
+    elif num_matches == 2:
+        # 2 algorithms agree → Moderate confidence
+        return {
+            'is_similar': True,
+            'confidence': 75,
+            'match_type': 'moderate_phonetic',
+            'algorithms': algorithms_used,
+            'matches': matches
+        }
+    elif num_matches == 1:
+        # 1 algorithm matches → Weak phonetic similarity
+        return {
+            'is_similar': True,
+            'confidence': 50,
+            'match_type': 'weak_phonetic',
+            'algorithms': algorithms_used,
+            'matches': matches
+        }
+    else:
+        # No phonetic match
+        return {
+            'is_similar': False,
+            'confidence': 0,
+            'match_type': 'none',
+            'algorithms': [],
+            'matches': []
+        }
 
 
 def calculate_punctuation_awareness(word_chunks, ground_truth_text):
@@ -300,7 +530,7 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
         }
     
     # Constants
-    PAUSE_THRESHOLD = 0.3  # seconds - meaningful pause
+    PAUSE_THRESHOLD = 0.08  # seconds - meaningful pause (80ms - very sensitive for AI-read passages)
     
     # Build a map of punctuation positions by analyzing words directly
     ground_truth_words = ground_truth_text.lower().split()
@@ -332,12 +562,43 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
         }
     
     # Analyze pauses between words and match with punctuation
+    # NEW APPROACH: Match ASR words to ground truth words to find punctuation
     pauses = []
     matched_pauses = 0
     total_significant_pauses = 0
     
-    # Create a set of punctuation word indices for faster lookup
-    punct_word_indices = {p['word_index'] for p in punctuation_positions}
+    # Build mapping: for each word_chunk, find its position in ground truth
+    print(f"🔍 Matching {len(word_chunks)} ASR words to {len(ground_truth_words)} ground truth words...")
+    
+    # Create a mapping of ASR word index to ground truth word index
+    asr_to_gt_mapping = {}
+    gt_index = 0
+    
+    for asr_idx, chunk in enumerate(word_chunks):
+        asr_word = chunk.get('text', '').lower().strip()
+        
+        # Try to find matching ground truth word (with smart matching)
+        found = False
+        for offset in range(max(0, gt_index - 2), min(len(ground_truth_words), gt_index + 3)):
+            gt_word_raw = ground_truth_words[offset]
+            
+            # Use smart word matching (handles "8" vs "eight", etc.)
+            if words_match(asr_word, gt_word_raw):
+                asr_to_gt_mapping[asr_idx] = offset
+                gt_index = offset + 1
+                found = True
+                break
+        
+        if not found:
+            # Word not found or mispronounced - skip mapping
+            asr_to_gt_mapping[asr_idx] = -1
+    
+    print(f"✓ Mapped {len([v for v in asr_to_gt_mapping.values() if v >= 0])} ASR words to ground truth")
+    print(f"📊 ASR to GT mapping sample: {dict(list(asr_to_gt_mapping.items())[:5])}")
+    
+    # Now analyze pauses and check if they align with punctuation
+    print(f"\n⏱️  Analyzing pauses (threshold: {PAUSE_THRESHOLD}s = {PAUSE_THRESHOLD*1000}ms)...")
+    all_pauses_log = []
     
     for i in range(len(word_chunks) - 1):
         current_word = word_chunks[i]
@@ -355,25 +616,56 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
         
         pause_duration = next_start - current_end
         
+        # Log ALL pauses for debugging
+        asr_word_text = current_word.get('text', '')
+        gt_idx = asr_to_gt_mapping.get(i, -1)
+        has_punct = False
+        
+        if gt_idx >= 0:
+            for punct in punctuation_positions:
+                if punct['word_index'] == gt_idx:
+                    has_punct = True
+                    break
+        
+        all_pauses_log.append({
+            'word': asr_word_text,
+            'pause_ms': round(pause_duration * 1000, 1),
+            'has_punct': has_punct,
+            'gt_idx': gt_idx
+        })
+        
         # Only consider significant pauses
         if pause_duration >= PAUSE_THRESHOLD:
             total_significant_pauses += 1
             
-            # Check if current word (i) has punctuation
-            # We check current word index against punctuation positions
-            has_punctuation = i in punct_word_indices
+            # Check if current ASR word corresponds to a ground truth word with punctuation
+            has_punctuation = False
             expected_punct = None
             
-            if has_punctuation:
-                # Find the punctuation details
+            # Get ground truth index for current ASR word
+            gt_idx = asr_to_gt_mapping.get(i, -1)
+            
+            # Debug: log this pause
+            asr_word_text = current_word.get('text', '')
+            print(f"   ⏸️  Pause detected: ASR[{i}]='{asr_word_text}' → GT[{gt_idx}] ({pause_duration:.2f}s)")
+            
+            if gt_idx >= 0:
+                # Check if this ground truth word has punctuation
                 for punct in punctuation_positions:
-                    if punct['word_index'] == i:
+                    if punct['word_index'] == gt_idx:
+                        has_punctuation = True
                         expected_punct = punct
+                        print(f"      ✓ GT word '{punct['word']}' has punctuation '{punct['char']}'")
                         break
+                
+                if not has_punctuation:
+                    gt_word = ground_truth_words[gt_idx] if gt_idx < len(ground_truth_words) else 'N/A'
+                    print(f"      ✗ GT word '{gt_word}' has NO punctuation")
             
             pause_info = {
-                'word_index': i,
-                'word': current_word.get('text', ''),
+                'asr_word_index': i,
+                'gt_word_index': gt_idx,
+                'word': asr_word_text,
                 'pause_duration': round(pause_duration, 2),
                 'has_punctuation': has_punctuation,
                 'punctuation': expected_punct['char'] if expected_punct else None
@@ -382,6 +674,7 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
             if has_punctuation:
                 matched_pauses += 1
                 pause_info['matched'] = True
+                print(f"      🎯 MATCHED!")
             else:
                 pause_info['matched'] = False
             
@@ -393,7 +686,21 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
     if total_expected > 0:
         punctuation_score = (matched_pauses / total_expected) * 100
     
-    print(f"✅ Punctuation Score: {matched_pauses}/{total_expected} expected pauses matched = {round(punctuation_score, 1)}%")
+    # Detailed pause analysis logging
+    print(f"\n📊 PAUSE ANALYSIS SUMMARY:")
+    print(f"   Total punctuation marks expected: {total_expected}")
+    print(f"   Pauses above threshold ({PAUSE_THRESHOLD*1000}ms): {total_significant_pauses}")
+    print(f"   Matched pauses at punctuation: {matched_pauses}")
+    print(f"   Score: {round(punctuation_score, 1)}%")
+    
+    # Show all pauses at punctuation locations (even if too short)
+    print(f"\n📍 Pauses at punctuation locations:")
+    for log in all_pauses_log:
+        if log['has_punct']:
+            status = "✓ COUNTED" if log['pause_ms'] >= PAUSE_THRESHOLD * 1000 else "✗ TOO SHORT"
+            print(f"   '{log['word']}': {log['pause_ms']}ms {status}")
+    
+    print(f"✅ Punctuation Score: {matched_pauses}/{total_expected} = {round(punctuation_score, 1)}%\n")
     
     return {
         "punctuation_score": round(punctuation_score, 1),
@@ -402,6 +709,123 @@ def calculate_punctuation_awareness(word_chunks, ground_truth_text):
         "total_pauses_detected": total_significant_pauses,
         "pause_locations": pauses[:10]  # Send first 10 for debugging
     }
+
+
+def analyze_expression_and_tone(audio_path):
+    """
+    Analyze vocal expression, pitch variation, energy, and emotional tone.
+    
+    This measures how expressively the student reads - monotone vs. dynamic reading.
+    
+    Returns:
+        dict with expression metrics including pitch variation, energy dynamics, 
+        emotional engagement score, and reading style assessment
+    """
+    if not LIBROSA_AVAILABLE:
+        return {
+            "expression_score": "N/A",
+            "pitch_variation": 0,
+            "energy_variation": 0,
+            "emotional_engagement": "N/A",
+            "reading_style": "Unable to analyze",
+            "message": "Audio analysis library not available"
+        }
+    
+    try:
+        # Load audio file
+        y, sr = librosa.load(audio_path, sr=None)
+        
+        # 1. PITCH ANALYSIS (Fundamental Frequency)
+        # Extract pitch using librosa's piptrack
+        pitches, magnitudes = librosa.piptrack(y=y, sr=sr, fmin=75, fmax=400)
+        
+        # Get pitch values where magnitude is highest
+        pitch_values = []
+        for t in range(pitches.shape[1]):
+            index = magnitudes[:, t].argmax()
+            pitch = pitches[index, t]
+            if pitch > 0:  # Only non-zero pitches
+                pitch_values.append(pitch)
+        
+        if len(pitch_values) == 0:
+            pitch_variation = 0
+            avg_pitch = 0
+        else:
+            pitch_values = np.array(pitch_values)
+            avg_pitch = np.mean(pitch_values)
+            pitch_std = np.std(pitch_values)
+            # Normalize variation (coefficient of variation)
+            pitch_variation = (pitch_std / avg_pitch * 100) if avg_pitch > 0 else 0
+        
+        # 2. ENERGY ANALYSIS (RMS - Root Mean Square)
+        rms = librosa.feature.rms(y=y)[0]
+        energy_variation = np.std(rms) / np.mean(rms) * 100 if np.mean(rms) > 0 else 0
+        
+        # 3. SPECTRAL FEATURES (Richness of voice)
+        spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+        spectral_variation = np.std(spectral_centroid) / np.mean(spectral_centroid) * 100
+        
+        # 4. ZERO CROSSING RATE (Voice dynamics)
+        zcr = librosa.feature.zero_crossing_rate(y)[0]
+        zcr_variation = np.std(zcr) / np.mean(zcr) * 100 if np.mean(zcr) > 0 else 0
+        
+        # 5. CALCULATE EXPRESSION SCORE (0-100)
+        # Weighted combination of variations
+        expression_score = (
+            pitch_variation * 0.4 +      # Pitch variation is most important
+            energy_variation * 0.3 +      # Energy dynamics
+            spectral_variation * 0.2 +    # Voice richness
+            zcr_variation * 0.1           # Voice dynamics
+        )
+        
+        # Cap at 100 and ensure non-negative
+        expression_score = max(0, min(100, expression_score))
+        
+        # 6. EMOTIONAL ENGAGEMENT ASSESSMENT
+        if expression_score < 15:
+            emotional_engagement = "Monotone"
+            reading_style = "Very flat, minimal expression"
+        elif expression_score < 30:
+            emotional_engagement = "Somewhat Flat"
+            reading_style = "Limited vocal variation"
+        elif expression_score < 50:
+            emotional_engagement = "Moderate"
+            reading_style = "Some expression, could be more dynamic"
+        elif expression_score < 70:
+            emotional_engagement = "Expressive"
+            reading_style = "Good vocal variation and tone"
+        else:
+            emotional_engagement = "Highly Expressive"
+            reading_style = "Excellent expression and emotional engagement"
+        
+        print(f"🎭 Expression Analysis:")
+        print(f"   Expression Score: {round(expression_score, 1)}/100")
+        print(f"   Pitch Variation: {round(pitch_variation, 1)}%")
+        print(f"   Energy Variation: {round(energy_variation, 1)}%")
+        print(f"   Engagement: {emotional_engagement}")
+        
+        return {
+            "expression_score": round(expression_score, 1),
+            "pitch_variation": round(pitch_variation, 1),
+            "energy_variation": round(energy_variation, 1),
+            "spectral_variation": round(spectral_variation, 1),
+            "emotional_engagement": emotional_engagement,
+            "reading_style": reading_style,
+            "avg_pitch_hz": round(avg_pitch, 1) if avg_pitch > 0 else 0
+        }
+        
+    except Exception as e:
+        print(f"⚠️ Error in expression analysis: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "expression_score": "Error",
+            "pitch_variation": 0,
+            "energy_variation": 0,
+            "emotional_engagement": "Error",
+            "reading_style": "Unable to analyze",
+            "message": str(e)
+        }
 
 
 def analyze_audio_simple(audio_path, ground_truth_text):
@@ -438,7 +862,7 @@ def analyze_audio_simple(audio_path, ground_truth_text):
         traceback.print_exc()
         raise Exception(f"Speech recognition failed: {str(e)}")
 
-    # 2. ACCURACY (Miscue Analysis using difflib)
+    # 2. ACCURACY (Miscue Analysis with smart word matching)
     print("🔍 Running Miscue Analysis...")
     ground_truth_words = ground_truth_text.lower().split()
     asr_words = asr_transcript.split()
@@ -457,9 +881,66 @@ def analyze_audio_simple(audio_path, ground_truth_text):
             "total_words": len(ground_truth_words),
             "created_at": datetime.utcnow()
         }
-        
+    
+    # Normalize both word lists (handle numbers, variations)
+    # But keep originals for display purposes
+    ground_truth_normalized = []
+    asr_normalized = []
+    
+    for word in ground_truth_words:
+        variations = normalize_word(word)
+        ground_truth_normalized.append(variations[0])  # Use primary variation
+    
+    for word in asr_words:
+        variations = normalize_word(word)
+        asr_normalized.append(variations[0])  # Use primary variation
+    
+    # Use normalized words for comparison
+    s = difflib.SequenceMatcher(None, ground_truth_normalized, asr_normalized)
+    
+    # 🎯 PHONETIC MISCUE ENGINE - Advanced accuracy calculation
+    correct_matches = 0
+    phonetic_matches = 0
+    phonetic_details = []
+    
+    for tag, i1, i2, j1, j2 in s.get_opcodes():
+        if tag == 'equal':
+            correct_matches += (i2 - i1)
+        elif tag == 'replace':
+            # Check replaced words with Phonetic Miscue Engine
+            for gt_idx, asr_idx in zip(range(i1, i2), range(j1, j2)):
+                if gt_idx < len(ground_truth_words) and asr_idx < len(asr_words):
+                    gt_word = ground_truth_words[gt_idx]
+                    asr_word = asr_words[asr_idx]
+                    
+                    # First: Check exact equivalence (like "8" vs "eight")
+                    if words_match(gt_word, asr_word):
+                        correct_matches += 1
+                    else:
+                        # Second: Check phonetic similarity
+                        phonetic_match = phonetic_similarity(gt_word, asr_word)
+                        if phonetic_match['is_similar']:
+                            # Count phonetic matches as partial credit
+                            phonetic_matches += 1
+                            phonetic_details.append({
+                                'expected': gt_word,
+                                'said': asr_word,
+                                'confidence': phonetic_match['confidence'],
+                                'type': phonetic_match['match_type']
+                            })
+                            print(f"   🎯 Phonetic Match: '{asr_word}' → '{gt_word}' ({phonetic_match['match_type']})")
+    
+    # Calculate accuracy: 100% for correct, 80% credit for phonetic matches
+    total_correct_score = correct_matches + (phonetic_matches * 0.8)
+    accuracy_percent = (total_correct_score / len(ground_truth_words) * 100) if len(ground_truth_words) > 0 else 0
+    
+    print(f"✓ Exact matches: {correct_matches}/{len(ground_truth_words)}")
+    print(f"🎯 Phonetic matches: {phonetic_matches} (good errors - applying phonics)")
+    print(f"📊 Total accuracy: {round(accuracy_percent, 1)}%")
+    
+    # Still use original SequenceMatcher for opcodes (visual display)
     s = difflib.SequenceMatcher(None, ground_truth_words, asr_words)
-    accuracy_percent = s.ratio() * 100
+    accuracy_percent_display = s.ratio() * 100
     
     # Get opcodes for React to render interactively
     opcodes = s.get_opcodes()
@@ -510,6 +991,11 @@ def analyze_audio_simple(audio_path, ground_truth_text):
     # Measures if student pauses at commas/periods = reading for meaning
     punctuation_analysis = calculate_punctuation_awareness(word_chunks, ground_truth_text)
     
+    # 6. EXPRESSION & TONE ANALYSIS (NEW!)
+    # Measures vocal expression, pitch variation, emotional engagement
+    print("🎤 Analyzing Expression & Tone...")
+    expression_analysis = analyze_expression_and_tone(audio_path)
+    
     print("✅ Analysis complete.")
     
     # Build word-level analysis for interactive playback
@@ -535,6 +1021,26 @@ def analyze_audio_simple(audio_path, ground_truth_text):
             "total_expected_pauses": punctuation_analysis["total_expected_pauses"],
             "total_pauses_detected": punctuation_analysis["total_pauses_detected"],
             "pause_locations": punctuation_analysis["pause_locations"]
+        },
+        # NEW: Expression & Tone Analysis
+        "expression_score": expression_analysis["expression_score"],
+        "expression_details": {
+            "pitch_variation": expression_analysis["pitch_variation"],
+            "energy_variation": expression_analysis["energy_variation"],
+            "emotional_engagement": expression_analysis["emotional_engagement"],
+            "reading_style": expression_analysis["reading_style"],
+            "spectral_variation": expression_analysis.get("spectral_variation", 0),
+            "avg_pitch_hz": expression_analysis.get("avg_pitch_hz", 0)
+        },
+        # 🎯 PHONETIC MISCUE ENGINE - "Good Errors" Analysis
+        "phonetic_matches": phonetic_matches,
+        "phonetic_details": phonetic_details,
+        "exact_matches": correct_matches,
+        "miscue_analysis": {
+            "total_errors": len(ground_truth_words) - correct_matches - phonetic_matches,
+            "phonetic_errors": phonetic_matches,  # Good errors - applying phonics
+            "substitution_errors": len(ground_truth_words) - correct_matches - phonetic_matches,  # True errors
+            "teaching_moments": phonetic_details  # Detailed list for teacher review
         },
         "word_analysis": word_analysis,  # New: word-level data for interactive playback
         "audio_path": audio_path,  # Store audio path for word extraction
@@ -616,15 +1122,25 @@ def handle_analysis():
         if student_name:
             try:
                 accuracy = float(report.get('accuracy_percent', 0))
-                fluency = float(report.get('prosody_score', 0))
+                
+                # Convert prosody_score string to numeric value
+                prosody_score_str = report.get('prosody_score', 'Good')
+                prosody_map = {
+                    'Very Choppy': 20,
+                    'Choppy': 40,
+                    'Good': 60,
+                    'Fluent': 80,
+                    'Very Fast': 70  # Fast but might not be ideal
+                }
+                fluency = prosody_map.get(prosody_score_str, 60)  # Default to 60
                 
                 # Get current student level
                 student = students_collection.find_one({"name": student_name})
                 if student:
                     current_level = int(student.get('current_level', 1))
                     
-                    # Level up if both accuracy and fluency are good (>=90%)
-                    if accuracy >= 90 and fluency >= 80:
+                    # Level up if both accuracy and fluency are good (>=90% accuracy, >=70 fluency)
+                    if accuracy >= 90 and fluency >= 70:
                         new_level = min(current_level + 1, 4)  # Max level 4
                         if new_level != current_level:
                             students_collection.update_one(
@@ -633,8 +1149,8 @@ def handle_analysis():
                             )
                             print(f"📈 Student level increased: {current_level} → {new_level}")
                     
-                    # Level down if performance is poor (accuracy <70% or fluency <50%)
-                    elif (accuracy < 70 or fluency < 50) and current_level > 1:
+                    # Level down if performance is poor (accuracy <70% or fluency <40)
+                    elif (accuracy < 70 or fluency < 40) and current_level > 1:
                         new_level = max(current_level - 1, 1)  # Min level 1
                         if new_level != current_level:
                             students_collection.update_one(
@@ -1657,15 +2173,21 @@ def serve():
 
 
 
-@app.route('/api/word/pronounce/<word>', methods=['GET'])
+@app.route('/api/word/pronounce/<word>', methods=['GET', 'OPTIONS'])
 def pronounce_word(word):
     """
     Generate TTS pronunciation for a word
     """
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     if not TTS_AVAILABLE:
-        return jsonify({"error": "TTS not available"}), 500
+        print("✗ TTS not available - gTTS not installed")
+        return jsonify({"error": "TTS not available. Please install gTTS: pip install gtts"}), 500
     
     try:
+        print(f"🔊 Generating pronunciation for word: '{word}'")
+        
         # Generate speech using gTTS
         tts = gTTS(text=word, lang='en', slow=False)
         
@@ -1674,9 +2196,12 @@ def pronounce_word(word):
         tts.write_to_fp(mp3_fp)
         mp3_fp.seek(0)
         
-        return send_file(mp3_fp, mimetype='audio/mpeg')
+        print(f"✓ Successfully generated pronunciation for: '{word}'")
+        return send_file(mp3_fp, mimetype='audio/mpeg', as_attachment=False, download_name=f'{word}.mp3')
     except Exception as e:
-        print(f"✗ TTS Error: {e}")
+        print(f"✗ TTS Error for word '{word}': {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 

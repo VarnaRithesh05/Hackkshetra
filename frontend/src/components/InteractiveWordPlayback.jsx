@@ -104,18 +104,48 @@ const InteractiveWordPlayback = ({ wordAnalysis, passageText, audioPath, opcodes
   const playPronunciation = async (word) => {
     try {
       setPlayingWord(word);
-      const response = await axios.get(`${API_URL}/word/pronounce/${word}`, {
-        responseType: 'blob'
+      // Remove punctuation from word before sending to API
+      const cleanWord = word.replace(/[.,!?;:'"()-]/g, '').trim();
+      
+      if (!cleanWord) {
+        console.error('No valid word to pronounce after cleaning');
+        setPlayingWord(null);
+        return;
+      }
+      
+      console.log(`🔊 Requesting pronunciation for: "${cleanWord}"`);
+      
+      const response = await axios.get(`${API_URL}/word/pronounce/${encodeURIComponent(cleanWord)}`, {
+        responseType: 'blob',
+        timeout: 10000 // 10 second timeout
       });
+      
+      console.log('✓ Received audio response');
+      
       const audioUrl = URL.createObjectURL(response.data);
       const audio = new Audio(audioUrl);
       
-      audio.onended = () => setPlayingWord(null);
-      audio.onerror = () => setPlayingWord(null);
+      audio.onended = () => {
+        console.log('✓ Audio finished playing');
+        URL.revokeObjectURL(audioUrl); // Clean up
+        setPlayingWord(null);
+      };
+      
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        URL.revokeObjectURL(audioUrl); // Clean up
+        setPlayingWord(null);
+      };
       
       await audio.play();
+      console.log('▶️ Playing audio...');
     } catch (err) {
       console.error('Error playing pronunciation:', err);
+      if (err.response) {
+        console.error('Response error:', err.response.data);
+        console.error('Status:', err.response.status);
+      }
+      alert(`Could not play pronunciation: ${err.message}`);
       setPlayingWord(null);
     }
   };
