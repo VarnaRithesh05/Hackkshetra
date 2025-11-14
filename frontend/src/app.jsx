@@ -324,6 +324,7 @@ function App() {
   const [studentsList, setStudentsList] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [showStoryDropdown, setShowStoryDropdown] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showUploadPassage, setShowUploadPassage] = useState(false);
 
@@ -407,8 +408,9 @@ function App() {
   const fetchStudents = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_URL}/students`);
+      const response = await axios.get(`${API_URL}/students/list`);
       setStudents(response.data);
+      setStudentsList(response.data); // Also populate studentsList for dropdown
       setError(null);
     } catch (err) {
       console.error("Error fetching students:", err);
@@ -837,55 +839,79 @@ function App() {
           <Dashboard setView={setView} darkMode={darkMode} />
         ) : view === 'record' ? (
           <div className="max-w-7xl mx-auto px-4 space-y-4">
-            {/* Top: Full-Width Student Information Form */}
-            <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
-                  <span className="text-2xl mr-3">👦</span>
-                  Student Information
-                </h2>
-                {(studentName || studentGrade || studentId) && (
-                  <button
-                    onClick={clearStudentInfo}
-                    className={`text-sm font-semibold ${darkMode ? 'text-purple-300 hover:text-purple-100 bg-purple-800 hover:bg-purple-700' : 'text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700'} px-4 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all`}
-                    disabled={isRecording || isLoading}
-                  >
-                    + New Student
-                  </button>
-                )}
-              </div>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="relative md:col-span-1">
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={studentName}
-                    onChange={(e) => {
-                        setStudentName(e.target.value);
-                        const filtered = studentsList.filter(s => 
-                          s.name.toLowerCase().includes(e.target.value.toLowerCase())
-                        );
-                        setFilteredStudents(filtered);
-                        setShowStudentDropdown(e.target.value.length > 0 && filtered.length > 0);
-                      }}
-                      onFocus={(e) => {
-                        if (e.target.value.length > 0) {
+            {/* Top Row: Student Information and Choose Story side by side */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Student Information - Left Column */}
+              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                    <span className="text-2xl mr-2">👦</span>
+                    Student Information
+                  </h2>
+                  {(studentName || studentGrade || studentId) && (
+                    <button
+                      onClick={clearStudentInfo}
+                      className={`text-xs font-semibold ${darkMode ? 'text-purple-300 hover:text-purple-100 bg-purple-800 hover:bg-purple-700' : 'text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700'} px-3 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all`}
+                      disabled={isRecording || isLoading}
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                      Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={studentName}
+                        onChange={(e) => {
+                          setStudentName(e.target.value);
                           const filtered = studentsList.filter(s => 
                             s.name.toLowerCase().includes(e.target.value.toLowerCase())
                           );
                           setFilteredStudents(filtered);
                           setShowStudentDropdown(filtered.length > 0);
-                        }
-                      }}
-                    disabled={isRecording || isLoading}
-                    placeholder="Type student's name or select from list"
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
+                        }}
+                        onFocus={(e) => {
+                          // Show all students when field is focused
+                          const filtered = e.target.value.length > 0 
+                            ? studentsList.filter(s => s.name.toLowerCase().includes(e.target.value.toLowerCase()))
+                            : studentsList;
+                          setFilteredStudents(filtered);
+                          setShowStudentDropdown(filtered.length > 0);
+                        }}
+                        onBlur={() => {
+                          // Delay hiding dropdown to allow click
+                          setTimeout(() => setShowStudentDropdown(false), 200);
+                        }}
+                        disabled={isRecording || isLoading}
+                        placeholder="Select or type student's name"
+                        className={`w-full px-4 py-3 pr-10 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                      />
+                      {/* Dropdown icon */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const filtered = studentName.length > 0 
+                            ? studentsList.filter(s => s.name.toLowerCase().includes(studentName.toLowerCase()))
+                            : studentsList;
+                          setFilteredStudents(filtered);
+                          setShowStudentDropdown(!showStudentDropdown);
+                        }}
+                        disabled={isRecording || isLoading}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 ${darkMode ? 'text-purple-400' : 'text-purple-600'} hover:opacity-70 transition-opacity`}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
                     {/* Student Dropdown */}
                     {showStudentDropdown && filteredStudents.length > 0 && (
-                      <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-blue-600' : 'bg-white border-blue-300'} border-2 rounded-xl shadow-lg max-h-48 overflow-y-auto`}>
+                      <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-white border-purple-300'} border-2 rounded-xl shadow-2xl max-h-60 overflow-y-auto`}>
                         {filteredStudents.map((student) => (
                           <button
                             key={student._id}
@@ -907,77 +933,125 @@ function App() {
                                 console.error('Error fetching recommended passage:', err);
                               }
                             }}
-                            className={`w-full text-left px-4 py-2 ${darkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-blue-50 text-gray-900'} transition-colors flex items-center justify-between`}
+                            className={`w-full text-left px-4 py-3 ${darkMode ? 'hover:bg-gray-700 text-white border-b border-gray-700' : 'hover:bg-purple-50 text-gray-900 border-b border-gray-100'} transition-colors flex items-center justify-between first:rounded-t-xl last:rounded-b-xl last:border-b-0`}
                           >
                             <div>
                               <div className="font-semibold">{student.name}</div>
-                              {student.grade && <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Grade: {student.grade}</div>}
+                              {student.grade && <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Grade {student.grade}</div>}
                             </div>
                             {student.student_id && <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>ID: {student.student_id}</span>}
                           </button>
                         ))}
                       </div>
                     )}
-                </div>
-                <div>
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    Grade
-                  </label>
-                  <input
-                    type="text"
-                    value={studentGrade}
-                    onChange={(e) => setStudentGrade(e.target.value)}
-                    disabled={isRecording || isLoading}
-                    placeholder="Grade 2"
-                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    ID
-                  </label>
-                  <input
-                    type="text"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    disabled={isRecording || isLoading}
-                    placeholder="Optional"
-                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                        Grade
+                      </label>
+                      <input
+                        type="text"
+                        value={studentGrade}
+                        onChange={(e) => setStudentGrade(e.target.value)}
+                        disabled={isRecording || isLoading}
+                        placeholder="Grade 2"
+                        className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                        ID
+                      </label>
+                      <input
+                        type="text"
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                        disabled={isRecording || isLoading}
+                        placeholder="Optional"
+                        className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Middle: Side-by-Side Choose Story and Recording */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Passage Selection - Left Column */}
+              {/* Choose Story - Right Column */}
               <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
                 <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
                   <span className="text-2xl mr-2">📖</span>
                   Choose Story
                 </h2>
-                <select
-                  value={selectedPassageId || ''}
-                  onChange={(e) => setSelectedPassageId(e.target.value)}
-                  disabled={isRecording || isLoading || passages.length === 0}
-                  className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm transition-all shadow-sm hover:shadow-md`}
-                >
-                  {passages.length === 0 ? (
-                    <option value="">No stories available - Check MongoDB connection</option>
-                  ) : (
-                    passages.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.level} - {p.title || 'Untitled'}
-                      </option>
-                    ))
+                <div className="relative">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedPassageId ? passages.find(p => p._id === selectedPassageId)?.level + ' - ' + (passages.find(p => p._id === selectedPassageId)?.title || 'Untitled') : ''}
+                      onFocus={() => setShowStoryDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowStoryDropdown(false), 200)}
+                      disabled={isRecording || isLoading || passages.length === 0}
+                      placeholder="Select a story..."
+                      readOnly
+                      className={`w-full px-4 py-3 pr-10 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                    />
+                    {/* Dropdown icon */}
+                    <button
+                      type="button"
+                      onClick={() => setShowStoryDropdown(!showStoryDropdown)}
+                      disabled={isRecording || isLoading || passages.length === 0}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 ${darkMode ? 'text-purple-400' : 'text-purple-600'} hover:opacity-70 transition-opacity`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {/* Story Dropdown */}
+                  {showStoryDropdown && passages.length > 0 && (
+                    <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-white border-purple-300'} border-2 rounded-xl shadow-2xl max-h-60 overflow-y-auto`}>
+                      {passages.map((passage) => (
+                        <button
+                          key={passage._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPassageId(passage._id);
+                            setShowStoryDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 ${darkMode ? 'hover:bg-gray-700 text-white border-b border-gray-700' : 'hover:bg-purple-50 text-gray-900 border-b border-gray-100'} transition-colors flex items-center justify-between first:rounded-t-xl last:rounded-b-xl last:border-b-0 ${
+                            selectedPassageId === passage._id ? (darkMode ? 'bg-gray-700' : 'bg-purple-50') : ''
+                          }`}
+                        >
+                          <div>
+                            <div className="font-semibold">{passage.title || 'Untitled'}</div>
+                            <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{passage.level}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </select>
+                </div>
                 {passages.length === 0 && (
                   <p className="mt-2 text-xs text-red-600 font-semibold">
                     ⚠️ Unable to load stories. Please ensure MongoDB is running and try refreshing the page.
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Bottom Row: Reading Passage and Recording Controls side by side */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Reading Passage - Left Column */}
+              {selectedPassage && (
+                <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
+                    <span className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md">{selectedPassage.level}</span>
+                  </div>
+                  <div className={`${darkMode ? 'bg-gray-800 border-purple-600 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-xl p-5 border-2 shadow-sm transition-colors max-h-96 overflow-y-auto`}>
+                    <p className="leading-relaxed text-base">{selectedPassage.text}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Recording Controls - Right Column */}
               <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
@@ -1077,19 +1151,6 @@ function App() {
                 )}
               </div>
             </div>
-
-            {/* Bottom: Full-Width Reading Passage */}
-            {selectedPassage && (
-              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
-                  <span className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md">{selectedPassage.level}</span>
-                </div>
-                <div className={`${darkMode ? 'bg-gray-800 border-purple-600 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-xl p-5 border-2 shadow-sm transition-colors`}>
-                  <p className="leading-relaxed text-base">{selectedPassage.text}</p>
-                </div>
-              </div>
-            )}
 
             {/* Results Display - Full Width Below */}
             {report && (

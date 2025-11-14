@@ -1136,9 +1136,15 @@ def get_class_stats():
     Uses aggregation pipeline to:
     1. Sort by created_at descending
     2. Group by student_name to get most recent report per student
-    3. Calculate total students, avg WCPM, and avg accuracy across class
+    3. Calculate total students (including uploaded roster), avg WCPM, and avg accuracy across class
     """
     try:
+        teacher_id = request.args.get('teacher_id', 'default_teacher')
+        
+        # Get total students from roster (includes students who haven't taken tests yet)
+        total_roster_students = students_collection.count_documents({"teacher_id": teacher_id})
+        
+        # Get unique students from reports who have taken tests
         pipeline = [
             # Step 1: Sort by created_at descending to prioritize recent reports
             {"$sort": {"created_at": -1}},
@@ -1150,10 +1156,10 @@ def get_class_stats():
                 "accuracy_percent": {"$first": "$accuracy_percent"}
             }},
             
-            # Step 3: Calculate class-level statistics
+            # Step 3: Calculate class-level statistics for students with assessments
             {"$group": {
                 "_id": None,
-                "totalStudents": {"$sum": 1},
+                "studentsWithAssessments": {"$sum": 1},
                 "avgWcpm": {"$avg": "$wcpm"},
                 "avgAccuracy": {"$avg": "$accuracy_percent"}
             }}
@@ -1166,12 +1172,21 @@ def get_class_stats():
             # Round averages to 2 decimal places
             stats['avgWcpm'] = round(stats.get('avgWcpm', 0), 2)
             stats['avgAccuracy'] = round(stats.get('avgAccuracy', 0), 2)
-            stats['totalStudents'] = stats.get('totalStudents', 0)
+            
+            # Total students includes both roster students and any students from reports not in roster
+            # Get students from reports not in roster
+            roster_student_names = set(s['name'] for s in students_collection.find({"teacher_id": teacher_id}, {"name": 1}))
+            report_student_names = reports_collection.distinct("student_name")
+            additional_students = len([name for name in report_student_names if name and name not in roster_student_names])
+            
+            stats['totalStudents'] = total_roster_students + additional_students
+            stats['studentsWithAssessments'] = stats.get('studentsWithAssessments', 0)
             return jsonify(stats)
         else:
-            # No data yet
+            # No assessments yet, but may have roster students
             return jsonify({
-                "totalStudents": 0,
+                "totalStudents": total_roster_students,
+                "studentsWithAssessments": 0,
                 "avgWcpm": 0,
                 "avgAccuracy": 0
             })
