@@ -30,7 +30,7 @@ const Spinner = () => (
   </svg>
 );
 
-const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, toggleDarkMode }) => {
+const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, onLogoClick, darkMode, toggleDarkMode }) => {
   // Local state for small profile dropdown
   const [showDropdown, setShowDropdown] = useState(false);
   const btnRef = useRef(null);
@@ -69,8 +69,8 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
     <header className={`${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm transition-colors`}>
       <div className="container mx-auto px-8 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📚</div>
+          <div className="flex items-center space-x-3 cursor-pointer" onClick={onLogoClick}>
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📖</div>
             <div>
               <h1 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} tracking-tight`}>Akshara</h1>
               <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs font-medium`}>Reading Fluency AI</p>
@@ -309,6 +309,8 @@ function App() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
   const [audioStream, setAudioStream] = useState(null);
@@ -320,6 +322,7 @@ function App() {
   const [studentsList, setStudentsList] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [showStoryDropdown, setShowStoryDropdown] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showUploadPassage, setShowUploadPassage] = useState(false);
 
@@ -403,8 +406,9 @@ function App() {
   const fetchStudents = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_URL}/students`);
+      const response = await axios.get(`${API_URL}/students/list`);
       setStudents(response.data);
+      setStudentsList(response.data); // Also populate studentsList for dropdown
       setError(null);
     } catch (err) {
       console.error("Error fetching students:", err);
@@ -586,230 +590,395 @@ function App() {
           {/* Profile is now a dedicated page (see Header 'View Profile') */}
         </>
       ) : (
-        // Show Dashboard
+        // Show App with Side Panel
         <>
-          <Header onLoginClick={() => openAuth('login')} onLogout={handleLogout} currentUser={currentUser} onViewProfile={openProfilePage} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+          <div className="flex h-screen overflow-hidden">
+            {/* Side Panel */}
+            <div className={`${sidebarCollapsed ? 'w-20' : 'w-64'} ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-r flex flex-col transition-all duration-300`}>
+              {/* Logo Section */}
+              <div className="p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between">
+                {!sidebarCollapsed && (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📖</div>
+                    <div>
+                      <h1 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} tracking-tight`}>Akshara</h1>
+                      <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs font-medium`}>Reading Fluency AI</p>
+                    </div>
+                  </div>
+                )}
+                {sidebarCollapsed && (
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md mx-auto">📖</div>
+                )}
+              </div>
 
-          {/* Profile Page */}
-          {view === 'profile' && (
-            <div className="container mx-auto px-4 py-8">
-              <Profile user={currentUser} token={authToken} onClose={() => setView('record')} onUpdateUser={(u) => setCurrentUser(u)} onLogout={() => { handleLogout(); setView('record'); }} />
+              {/* Toggle Button */}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className={`mx-4 my-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors flex items-center justify-center`}
+              >
+                {sidebarCollapsed ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Navigation Menu */}
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button
+                  onClick={() => setView('dashboard')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'dashboard'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Dashboard' : ''}
+                >
+                  <span className="text-xl">📊</span>
+                  {!sidebarCollapsed && <span>Dashboard</span>}
+                </button>
+                <button
+                  onClick={() => setView('record')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'record'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Record Reading' : ''}
+                >
+                  <span className="text-xl">🎤</span>
+                  {!sidebarCollapsed && <span>Record Reading</span>}
+                </button>
+                <button
+                  onClick={() => {
+                    setView('history');
+                    fetchStudents();
+                    setSelectedStudent(null);
+                    setSelectedReport(null);
+                  }}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'history'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'All Students' : ''}
+                >
+                  <span className="text-xl">👥</span>
+                  {!sidebarCollapsed && <span>All Students</span>}
+                </button>
+                <button
+                  onClick={() => setView('analytics')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'analytics'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Analytics' : ''}
+                >
+                  <span className="text-xl">📈</span>
+                  {!sidebarCollapsed && <span>Analytics</span>}
+                </button>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                  title={sidebarCollapsed ? 'Upload Students' : ''}
+                >
+                  <span className="text-xl">📤</span>
+                  {!sidebarCollapsed && <span>Upload Students</span>}
+                </button>
+                <button
+                  onClick={() => setShowUploadPassage(true)}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                  title={sidebarCollapsed ? 'Upload Passage' : ''}
+                >
+                  <span className="text-xl">📖</span>
+                  {!sidebarCollapsed && <span>Upload Passage</span>}
+                </button>
+              </nav>
+
+              {/* User Profile Section */}
+              <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                {!sidebarCollapsed ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 ${darkMode ? 'bg-purple-700' : 'bg-purple-200'} rounded-full flex items-center justify-center font-bold ${darkMode ? 'text-white' : 'text-purple-700'}`}>
+                        {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} truncate`}>
+                          {currentUser?.name || 'User'}
+                        </p>
+                        <button
+                          onClick={openProfilePage}
+                          className={`text-xs ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'} font-medium`}
+                        >
+                          View Profile
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={toggleDarkMode}
+                      className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
+                      aria-label="Toggle dark mode"
+                    >
+                      {darkMode ? (
+                        <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-red-400' : 'hover:bg-gray-100 text-red-600'} transition-colors`}
+                      aria-label="Logout"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className={`w-10 h-10 ${darkMode ? 'bg-purple-700' : 'bg-purple-200'} rounded-full flex items-center justify-center font-bold ${darkMode ? 'text-white' : 'text-purple-700'} mx-auto`}>
+                      {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <button
+                      onClick={toggleDarkMode}
+                      className={`w-full p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors flex justify-center`}
+                      aria-label="Toggle dark mode"
+                    >
+                      {darkMode ? (
+                        <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`w-full p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-red-400' : 'hover:bg-gray-100 text-red-600'} transition-colors flex justify-center`}
+                      aria-label="Logout"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {view !== 'profile' && (
-            <>
-              {/* Navigation Tabs */}
-      <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-md border-b transition-colors`}>
-        <div className="container mx-auto px-4">
-          <div className="flex space-x-6">
-            <button
-              onClick={() => setView('dashboard')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'dashboard'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">🏠</span>
-                <span>Dashboard</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setView('record')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'record'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">🎤</span>
-                <span>Record Reading</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📤</span>
-                <span>Upload Students</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setShowUploadPassage(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📖</span>
-                <span>Upload Passage</span>
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setView('history');
-                fetchStudents();
-                setSelectedStudent(null);
-                setSelectedReport(null);
-              }}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'history'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📊</span>
-                <span>All Students</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setView('analytics')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'analytics'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📈</span>
-                <span>Analytics</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
+            {/* Main Content Area */}
+            <div className="flex-1 overflow-auto">
+              {/* Profile Page */}
+              {view === 'profile' && (
+                <div className="container mx-auto px-4 py-8">
+                  <Profile user={currentUser} token={authToken} onClose={() => setView('dashboard')} onUpdateUser={(u) => setCurrentUser(u)} onLogout={() => { handleLogout(); }} />
+                </div>
+              )}
 
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {error && <Alert type="error" message={error} onClose={() => setError(null)} darkMode={darkMode} />}
+              {view !== 'profile' && (
+                <>
+                  {/* Page Header */}
+                  <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b p-6 transition-colors`}>
+                    <h1 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {view === 'dashboard' && '📊 Dashboard'}
+                      {view === 'record' && '🎤 Record Reading'}
+                      {view === 'history' && '👥 All Students'}
+                      {view === 'analytics' && '📈 Analytics'}
+                    </h1>
+                  </div>
 
-        {view === 'dashboard' ? (
+                  {/* Main Content */}
+                  <div className="p-6">
+                    {error && <Alert type="error" message={error} onClose={() => setError(null)} darkMode={darkMode} />}
+
+                    {view === 'dashboard' ? (
           <Dashboard setView={setView} darkMode={darkMode} />
         ) : view === 'record' ? (
           <div className="max-w-7xl mx-auto px-4 space-y-4">
-            {/* Top: Full-Width Student Information Form */}
-            <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
-                  <span className="text-2xl mr-3">👦</span>
-                  Student Information
-                </h2>
-                {(studentName || studentGrade || studentId) && (
-                  <button
-                    onClick={clearStudentInfo}
-                    className={`text-sm font-semibold ${darkMode ? 'text-purple-300 hover:text-purple-100 bg-purple-800 hover:bg-purple-700' : 'text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700'} px-4 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all`}
-                    disabled={isRecording || isLoading}
-                  >
-                    + New Student
-                  </button>
-                )}
-              </div>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="md:col-span-1">
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={studentName}
-                    onChange={async (e) => {
-                      const selectedName = e.target.value;
-                      setStudentName(selectedName);
-                      
-                      if (selectedName) {
-                        // Find the selected student to populate grade and ID
-                        const student = studentsList.find(s => s.name === selectedName);
-                        if (student) {
-                          setStudentGrade(student.grade || '');
-                          setStudentId(student.student_id || '');
-                          
-                          // Fetch recommended passage for this student
-                          try {
-                            const response = await axios.get(`${API_URL}/students/${encodeURIComponent(student.name)}/recommended-passage`);
-                            if (response.data.passage) {
-                              setSelectedPassageId(response.data.passage._id);
-                              console.log(`📚 Auto-selected Level ${response.data.current_level} passage for ${student.name}`);
-                            }
-                          } catch (err) {
-                            console.error('Error fetching recommended passage:', err);
-                          }
-                        }
-                      } else {
-                        setStudentGrade('');
-                        setStudentId('');
-                      }
-                    }}
-                    disabled={isRecording || isLoading}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  >
-                    <option value="">Select a student...</option>
-                    {studentsList.map((student) => (
-                      <option key={student._id} value={student.name}>
-                        {student.name} {student.grade ? `(Grade ${student.grade})` : ''} {student.student_id ? `- ID: ${student.student_id}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    Grade
-                  </label>
-                  <input
-                    type="text"
-                    value={studentGrade}
-                    onChange={(e) => setStudentGrade(e.target.value)}
-                    disabled={isRecording || isLoading}
-                    placeholder="Grade 2"
-                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
-                    ID
-                  </label>
-                  <input
-                    type="text"
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    disabled={isRecording || isLoading}
-                    placeholder="Optional"
-                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Middle: Side-by-Side Choose Story and Recording */}
+            {/* Top Row: Student Information and Choose Story side by side */}
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Passage Selection - Left Column */}
+              {/* Student Information - Left Column */}
+              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                    <span className="text-2xl mr-2">👦</span>
+                    Student Information
+                  </h2>
+                  {(studentName || studentGrade || studentId) && (
+                    <button
+                      onClick={clearStudentInfo}
+                      className={`text-xs font-semibold ${darkMode ? 'text-purple-300 hover:text-purple-100 bg-purple-800 hover:bg-purple-700' : 'text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700'} px-3 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all`}
+                      disabled={isRecording || isLoading}
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                      Name <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={studentName}
+                      onChange={async (e) => {
+                        const selectedName = e.target.value;
+                        setStudentName(selectedName);
+                        
+                        if (selectedName) {
+                          // Find the selected student to populate grade and ID
+                          const student = studentsList.find(s => s.name === selectedName);
+                          if (student) {
+                            setStudentGrade(student.grade || '');
+                            setStudentId(student.student_id || '');
+                            
+                            // Fetch recommended passage for this student
+                            try {
+                              const response = await axios.get(`${API_URL}/students/${encodeURIComponent(student.name)}/recommended-passage`);
+                              if (response.data.passage) {
+                                setSelectedPassageId(response.data.passage._id);
+                                console.log(`📚 Auto-selected Level ${response.data.current_level} passage for ${student.name}`);
+                              }
+                            } catch (err) {
+                              console.error('Error fetching recommended passage:', err);
+                            }
+                          }
+                        } else {
+                          setStudentGrade('');
+                          setStudentId('');
+                        }
+                      }}
+                      disabled={isRecording || isLoading}
+                      className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                    >
+                      <option value="">Select a student...</option>
+                      {studentsList.map((student) => (
+                        <option key={student._id} value={student.name}>
+                          {student.name} {student.grade ? `(Grade ${student.grade})` : ''} {student.student_id ? `- ID: ${student.student_id}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                        Grade
+                      </label>
+                      <input
+                        type="text"
+                        value={studentGrade}
+                        onChange={(e) => setStudentGrade(e.target.value)}
+                        disabled={isRecording || isLoading}
+                        placeholder="Grade 2"
+                        className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                        ID
+                      </label>
+                      <input
+                        type="text"
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                        disabled={isRecording || isLoading}
+                        placeholder="Optional"
+                        className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Choose Story - Right Column */}
               <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
                 <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
                   <span className="text-2xl mr-2">📖</span>
                   Choose Story
                 </h2>
-                <select
-                  value={selectedPassageId || ''}
-                  onChange={(e) => setSelectedPassageId(e.target.value)}
-                  disabled={isRecording || isLoading || passages.length === 0}
-                  className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm transition-all shadow-sm hover:shadow-md`}
-                >
-                  {passages.length === 0 ? (
-                    <option value="">No stories available - Check MongoDB connection</option>
-                  ) : (
-                    passages.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.level} - {p.title || 'Untitled'}
-                      </option>
-                    ))
+                <div className="relative">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedPassageId ? passages.find(p => p._id === selectedPassageId)?.level + ' - ' + (passages.find(p => p._id === selectedPassageId)?.title || 'Untitled') : ''}
+                      onFocus={() => setShowStoryDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowStoryDropdown(false), 200)}
+                      disabled={isRecording || isLoading || passages.length === 0}
+                      placeholder="Select a story..."
+                      readOnly
+                      className={`w-full px-4 py-3 pr-10 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed cursor-pointer text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                    />
+                    {/* Dropdown icon */}
+                    <button
+                      type="button"
+                      onClick={() => setShowStoryDropdown(!showStoryDropdown)}
+                      disabled={isRecording || isLoading || passages.length === 0}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 ${darkMode ? 'text-purple-400' : 'text-purple-600'} hover:opacity-70 transition-opacity`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {/* Story Dropdown */}
+                  {showStoryDropdown && passages.length > 0 && (
+                    <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-white border-purple-300'} border-2 rounded-xl shadow-2xl max-h-60 overflow-y-auto`}>
+                      {passages.map((passage) => (
+                        <button
+                          key={passage._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPassageId(passage._id);
+                            setShowStoryDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 ${darkMode ? 'hover:bg-gray-700 text-white border-b border-gray-700' : 'hover:bg-purple-50 text-gray-900 border-b border-gray-100'} transition-colors flex items-center justify-between first:rounded-t-xl last:rounded-b-xl last:border-b-0 ${
+                            selectedPassageId === passage._id ? (darkMode ? 'bg-gray-700' : 'bg-purple-50') : ''
+                          }`}
+                        >
+                          <div>
+                            <div className="font-semibold">{passage.title || 'Untitled'}</div>
+                            <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{passage.level}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </select>
+                </div>
                 {passages.length === 0 && (
                   <p className="mt-2 text-xs text-red-600 font-semibold">
                     ⚠️ Unable to load stories. Please ensure MongoDB is running and try refreshing the page.
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Bottom Row: Reading Passage and Recording Controls side by side */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Reading Passage - Left Column */}
+              {selectedPassage && (
+                <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
+                    <span className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md">{selectedPassage.level}</span>
+                  </div>
+                  <div className={`${darkMode ? 'bg-gray-800 border-purple-600 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-xl p-5 border-2 shadow-sm transition-colors max-h-96 overflow-y-auto`}>
+                    <p className="leading-relaxed text-base">{selectedPassage.text}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Recording Controls - Right Column */}
               <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
@@ -893,19 +1062,6 @@ function App() {
                 )}
               </div>
             </div>
-
-            {/* Bottom: Full-Width Reading Passage */}
-            {selectedPassage && (
-              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
-                  <span className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md">{selectedPassage.level}</span>
-                </div>
-                <div className={`${darkMode ? 'bg-gray-800 border-purple-600 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-xl p-5 border-2 shadow-sm transition-colors`}>
-                  <p className="leading-relaxed text-base">{selectedPassage.text}</p>
-                </div>
-              </div>
-            )}
 
             {/* Results Display - Full Width Below */}
             {report && (
@@ -1502,9 +1658,13 @@ function App() {
             darkMode={darkMode}
           />
         )}
-      </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-      {/* Student Upload Modal */}
+          {/* Student Upload Modal */}
       {showUploadModal && (
         <StudentUpload
           onUploadSuccess={() => {
@@ -1546,18 +1706,6 @@ function App() {
           </div>
         </div>
       )}
-
-            </>
-          )}
-
-          {/* Footer */}
-          <footer className="bg-gradient-to-r from-purple-500 to-pink-500 mt-8 border-t-4 border-yellow-400">
-            <div className="container mx-auto px-4 py-3">
-              <p className="text-center text-white text-xs font-bold">
-                ✨ Akshara - Making Reading Fun with AI Magic! 🎉
-              </p>
-            </div>
-          </footer>
         </>
       )}
       </div>
