@@ -70,7 +70,7 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
       <div className="container mx-auto px-8 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center text-xl shadow-sm">📚</div>
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📚</div>
             <div>
               <h1 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} tracking-tight`}>Akshara</h1>
               <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs font-medium`}>Reading Fluency AI</p>
@@ -82,7 +82,7 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-all"
+              className={`p-2 rounded-full border-2 ${darkMode ? 'border-purple-600 hover:border-purple-500' : 'border-purple-300 hover:border-purple-400'} transition-all`}
               aria-label="Toggle dark mode"
             >
               {darkMode ? (
@@ -100,7 +100,7 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
               <>
                 <button
                   onClick={onLoginClick}
-                  className={`px-6 py-2 border-2 ${darkMode ? 'border-white text-white hover:bg-white hover:text-gray-900' : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'} rounded-full font-semibold transition-all text-sm`}
+                  className="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-full font-semibold transition-all text-sm shadow-lg hover:shadow-xl"
                 >
                   Teacher Login
                 </button>
@@ -120,9 +120,9 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
                 </button>
 
                 {showDropdown && (
-                  <div ref={dropdownRef} role="menu" aria-label="Profile menu" className={`absolute right-0 mt-12 w-44 ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-800'} rounded-xl shadow-lg border p-2 z-50`}>
-                    <button onClick={() => { onViewProfile && onViewProfile(); setShowDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg transition font-medium ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50'}`}>View Profile</button>
-                    <button onClick={() => { onLogout && onLogout(); setShowDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg transition font-medium ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50'}`}>Logout</button>
+                  <div ref={dropdownRef} role="menu" aria-label="Profile menu" className={`absolute right-0 mt-12 w-44 ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-200' : 'bg-white border-gray-200 text-gray-800'} rounded-xl shadow-lg border-2 p-2 z-50`}>
+                    <button onClick={() => { onViewProfile && onViewProfile(); setShowDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg transition font-medium ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-50'}`}>View Profile</button>
+                    <button onClick={() => { onLogout && onLogout(); setShowDropdown(false); }} className={`w-full text-left px-3 py-2 rounded-lg transition font-medium ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-red-50'}`}>Logout</button>
                   </div>
                 )}
               </>
@@ -147,24 +147,24 @@ const Timer = ({ seconds, darkMode }) => {
 const MetricCard = ({ icon, label, value, gradient, darkMode }) => {
   const colors = {
     blue: darkMode 
-      ? 'border-blue-400 bg-gradient-to-br from-blue-900 to-blue-800' 
-      : 'border-blue-400 bg-gradient-to-br from-blue-50 to-blue-100',
+      ? 'border-purple-500 bg-gradient-to-br from-purple-900 to-indigo-900' 
+      : 'border-purple-500 bg-white',
     green: darkMode 
-      ? 'border-green-400 bg-gradient-to-br from-green-900 to-green-800' 
-      : 'border-green-400 bg-gradient-to-br from-green-50 to-green-100',
+      ? 'border-green-500 bg-gradient-to-br from-green-900 to-emerald-900' 
+      : 'border-green-500 bg-white',
     purple: darkMode 
-      ? 'border-purple-400 bg-gradient-to-br from-purple-900 to-purple-800' 
-      : 'border-purple-400 bg-gradient-to-br from-purple-50 to-purple-100'
+      ? 'border-purple-500 bg-gradient-to-br from-purple-900 to-violet-900' 
+      : 'border-purple-500 bg-white'
   };
   
   return (
-    <div className={`${colors[gradient]} border-l-4 rounded-2xl shadow-md hover:shadow-lg p-6 transition-all`}>
+    <div className={`${colors[gradient]} border-l-4 rounded-2xl shadow-xl hover:shadow-2xl p-6 transition-all border-2 ${darkMode ? 'border-purple-700' : 'border-purple-200'}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className={`text-xs font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-600'} uppercase tracking-wide mb-2 transition-colors`}>{label}</p>
+          <p className={`text-xs font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-600'} uppercase tracking-wide mb-2 transition-colors`}>{label}</p>
           <p className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors`}>{value}</p>
         </div>
-        <div className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} ml-2 transition-colors`}>
+        <div className={`${darkMode ? 'text-purple-400' : 'text-purple-500'} ml-2 transition-colors`}>
           {icon}
         </div>
       </div>
@@ -313,6 +313,8 @@ function App() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
   const [audioStream, setAudioStream] = useState(null);
+  const [speechDetected, setSpeechDetected] = useState(false);
+  const [showSpeechWarning, setShowSpeechWarning] = useState(false);
   
   // Student information state
   const [studentName, setStudentName] = useState('');
@@ -470,6 +472,44 @@ function App() {
       setReport(null);
       setError(null);
       setHasRecording(false);
+      setSpeechDetected(false);
+      setShowSpeechWarning(false);
+      
+      // Set up audio analysis for speech detection
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      microphone.connect(analyser);
+      analyser.fftSize = 2048;
+      
+      let speechDetectedFlag = false;
+      const speechThreshold = 40; // Adjust sensitivity (lower = more sensitive)
+      const silenceThreshold = 20; // Background noise threshold
+      
+      const checkSpeech = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        
+        // Detect meaningful speech (above background noise)
+        if (average > speechThreshold) {
+          speechDetectedFlag = true;
+          setSpeechDetected(true);
+        }
+      };
+      
+      const speechCheckInterval = setInterval(checkSpeech, 100);
+      
+      // After 5 seconds, check if speech was detected
+      setTimeout(() => {
+        clearInterval(speechCheckInterval);
+        if (!speechDetectedFlag) {
+          setShowSpeechWarning(true);
+        }
+        audioContext.close();
+      }, 5000);
+      
     } catch (err) {
       console.error("Error starting recording:", err);
       setError("Could not start recording. Please ensure microphone permissions are granted.");
@@ -484,6 +524,7 @@ function App() {
     }
     setIsRecording(false);
     setAudioStream(null);
+    setShowSpeechWarning(false);
   };
 
   // Analysis function
@@ -598,8 +639,8 @@ function App() {
               onClick={() => setView('dashboard')}
               className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
                 view === 'dashboard'
-                  ? darkMode ? 'border-white text-white' : 'border-gray-900 text-gray-900'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
+                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
               }`}
             >
               <span className="flex items-center space-x-2">
@@ -611,8 +652,8 @@ function App() {
               onClick={() => setView('record')}
               className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
                 view === 'record'
-                  ? darkMode ? 'border-white text-white' : 'border-gray-900 text-gray-900'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
+                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
               }`}
             >
               <span className="flex items-center space-x-2">
@@ -622,7 +663,7 @@ function App() {
             </button>
             <button
               onClick={() => setShowUploadModal(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
+              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
             >
               <span className="flex items-center space-x-2">
                 <span className="text-xl">📤</span>
@@ -631,7 +672,7 @@ function App() {
             </button>
             <button
               onClick={() => setShowUploadPassage(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'}`}
+              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
             >
               <span className="flex items-center space-x-2">
                 <span className="text-xl">📖</span>
@@ -647,8 +688,8 @@ function App() {
               }}
               className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
                 view === 'history'
-                  ? darkMode ? 'border-white text-white' : 'border-gray-900 text-gray-900'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
+                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
               }`}
             >
               <span className="flex items-center space-x-2">
@@ -660,8 +701,8 @@ function App() {
               onClick={() => setView('analytics')}
               className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
                 view === 'analytics'
-                  ? darkMode ? 'border-white text-white' : 'border-gray-900 text-gray-900'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-white hover:border-gray-500' : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
+                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
               }`}
             >
               <span className="flex items-center space-x-2">
@@ -679,35 +720,33 @@ function App() {
         {view === 'dashboard' ? (
           <Dashboard setView={setView} darkMode={darkMode} />
         ) : view === 'record' ? (
-          <div className={`grid gap-6 ${report ? 'lg:grid-cols-1' : 'lg:grid-cols-2'}`}>
-            {/* Left Column: Recording Controls */}
-            <div className="space-y-4">
-              {/* Student Information Form */}
-              <div className={`${darkMode ? 'bg-gradient-to-br from-blue-900 to-indigo-900 border-blue-700' : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
-                    <span className="text-2xl mr-2">👦</span>
-                    Student Info
-                  </h2>
-                  {(studentName || studentGrade || studentId) && (
-                    <button
-                      onClick={clearStudentInfo}
-                      className={`text-xs font-semibold ${darkMode ? 'text-blue-300 hover:text-blue-100 bg-gray-800 border-blue-600' : 'text-blue-700 hover:text-blue-900 bg-white border-blue-300'} border px-3 py-1 rounded-full shadow-sm transition-colors`}
-                      disabled={isRecording || isLoading}
-                    >
-                      New Student
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div className="relative">
-                    <label className={`block text-xs font-bold ${darkMode ? 'text-blue-300' : 'text-blue-900'} mb-1`}>
-                      Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={studentName}
-                      onChange={(e) => {
+          <div className="max-w-7xl mx-auto px-4 space-y-4">
+            {/* Top: Full-Width Student Information Form */}
+            <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center`}>
+                  <span className="text-2xl mr-3">👦</span>
+                  Student Information
+                </h2>
+                {(studentName || studentGrade || studentId) && (
+                  <button
+                    onClick={clearStudentInfo}
+                    className={`text-sm font-semibold ${darkMode ? 'text-purple-300 hover:text-purple-100 bg-purple-800 hover:bg-purple-700' : 'text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700'} px-4 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all`}
+                    disabled={isRecording || isLoading}
+                  >
+                    + New Student
+                  </button>
+                )}
+              </div>
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="relative md:col-span-1">
+                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                    Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => {
                         setStudentName(e.target.value);
                         const filtered = studentsList.filter(s => 
                           s.name.toLowerCase().includes(e.target.value.toLowerCase())
@@ -724,10 +763,10 @@ function App() {
                           setShowStudentDropdown(filtered.length > 0);
                         }
                       }}
-                      disabled={isRecording || isLoading}
-                      placeholder="Type student's name or select from list"
-                      className={`w-full px-3 py-2 border-2 ${darkMode ? 'bg-gray-800 border-blue-600 text-white placeholder-gray-400' : 'bg-white border-blue-300 text-gray-900'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 text-sm font-medium transition-colors`}
-                    />
+                    disabled={isRecording || isLoading}
+                    placeholder="Type student's name or select from list"
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                  />
                     {/* Student Dropdown */}
                     {showStudentDropdown && filteredStudents.length > 0 && (
                       <div className={`absolute z-10 w-full mt-1 ${darkMode ? 'bg-gray-800 border-blue-600' : 'bg-white border-blue-300'} border-2 rounded-xl shadow-lg max-h-48 overflow-y-auto`}>
@@ -763,41 +802,41 @@ function App() {
                         ))}
                       </div>
                     )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={`block text-xs font-bold ${darkMode ? 'text-blue-300' : 'text-blue-900'} mb-1`}>
-                        Grade
-                      </label>
-                      <input
-                        type="text"
-                        value={studentGrade}
-                        onChange={(e) => setStudentGrade(e.target.value)}
-                        disabled={isRecording || isLoading}
-                        placeholder="Grade 2"
-                        className={`w-full px-3 py-2 border-2 ${darkMode ? 'bg-gray-800 border-blue-600 text-white placeholder-gray-400' : 'bg-white border-blue-300 text-gray-900'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 text-sm font-medium transition-colors`}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-xs font-bold ${darkMode ? 'text-blue-300' : 'text-blue-900'} mb-1`}>
-                        ID
-                      </label>
-                      <input
-                        type="text"
-                        value={studentId}
-                        onChange={(e) => setStudentId(e.target.value)}
-                        disabled={isRecording || isLoading}
-                        placeholder="Optional"
-                        className={`w-full px-3 py-2 ${darkMode ? 'bg-gray-800 border-blue-600 text-white placeholder-gray-400' : 'bg-white border-blue-300 text-gray-900'} border rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:bg-gray-100 text-sm shadow-sm transition-colors`}
-                      />
-                    </div>
-                  </div>
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                    Grade
+                  </label>
+                  <input
+                    type="text"
+                    value={studentGrade}
+                    onChange={(e) => setStudentGrade(e.target.value)}
+                    disabled={isRecording || isLoading}
+                    placeholder="Grade 2"
+                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-gray-700'} mb-2`}>
+                    ID
+                  </label>
+                  <input
+                    type="text"
+                    value={studentId}
+                    onChange={(e) => setStudentId(e.target.value)}
+                    disabled={isRecording || isLoading}
+                    placeholder="Optional"
+                    className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 text-sm font-medium transition-all shadow-sm hover:shadow-md`}
+                  />
                 </div>
               </div>
+            </div>
 
-              {/* Passage Selection */}
-              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-pink-900 border-purple-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200'} rounded-2xl border p-6 shadow-md transition-colors`}>
-                <h2 className={`text-lg font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
+            {/* Middle: Side-by-Side Choose Story and Recording */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Passage Selection - Left Column */}
+              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
                   <span className="text-2xl mr-2">📖</span>
                   Choose Story
                 </h2>
@@ -805,7 +844,7 @@ function App() {
                   value={selectedPassageId || ''}
                   onChange={(e) => setSelectedPassageId(e.target.value)}
                   disabled={isRecording || isLoading || passages.length === 0}
-                  className={`w-full px-3 py-2 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-white border-purple-300 text-gray-900'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-bold text-sm transition-colors`}
+                  className={`w-full px-4 py-3 border-2 ${darkMode ? 'bg-gray-800 border-purple-600 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'} rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-medium text-sm transition-all shadow-sm hover:shadow-md`}
                 >
                   {passages.length === 0 ? (
                     <option value="">No stories available - Check MongoDB connection</option>
@@ -824,32 +863,34 @@ function App() {
                 )}
               </div>
 
-              {/* Real-time Feedback */}
-              <RealTimeFeedback 
-                isRecording={isRecording}
-                stream={audioStream}
-                darkMode={darkMode}
-              />
-
-              {/* Recording Controls - Compact */}
-              <div className={`${darkMode ? 'bg-gradient-to-br from-pink-900 to-rose-900 border-pink-700' : 'bg-gradient-to-br from-pink-50 to-rose-50 border-pink-200'} rounded-2xl border p-4 shadow-md transition-colors`}>
-                <h2 className={`text-base font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-3 flex items-center`}>
-                  <span className="text-xl mr-2">🎙️</span>
+              {/* Recording Controls - Right Column */}
+              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center`}>
+                  <span className="text-2xl mr-2">🎙️</span>
                   Recording
                 </h2>
+
+                {/* Real-time Feedback - Inside Recording Card */}
+                <div className="mb-4">
+                  <RealTimeFeedback 
+                    isRecording={isRecording}
+                    stream={audioStream}
+                    darkMode={darkMode}
+                  />
+                </div>
                 
-                {/* Timer Display - Compact */}
-                <div className={`flex justify-center items-center mb-3 p-4 ${darkMode ? 'bg-gray-800 border-pink-600' : 'bg-white border-pink-200'} rounded-xl border shadow-sm transition-colors`}>
+                {/* Timer Display */}
+                <div className={`flex justify-center items-center mb-4 p-4 ${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-gray-50 border-gray-200'} rounded-xl border-2 shadow-sm transition-colors`}>
                   <Timer seconds={recordingTime} darkMode={darkMode} />
                 </div>
 
-                {/* Control Buttons - Compact */}
+                {/* Control Buttons */}
                 <div className="space-y-2">
                   {!isRecording && !hasRecording && (
                     <button
                       onClick={startRecording}
                       disabled={isLoading}
-                      className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-2.5 px-5 rounded-full transition-all text-sm`}
+                      className={`w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white disabled:bg-gray-400 font-bold py-3 px-6 rounded-xl transition-all text-sm shadow-lg hover:shadow-xl`}
                     >
                       <span className="text-lg">▶️</span>
                       <span>START RECORDING</span>
@@ -859,7 +900,7 @@ function App() {
                   {isRecording && (
                     <button
                       onClick={stopRecording}
-                      className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-full transition-all animate-pulse text-sm"
+                      className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-all animate-pulse text-sm shadow-lg"
                     >
                       <span className="text-lg">⏹️</span>
                       <span>STOP</span>
@@ -871,7 +912,7 @@ function App() {
                       <button
                         onClick={handleAnalyze}
                         disabled={isLoading}
-                        className={`w-full flex items-center justify-center space-x-2 ${darkMode ? 'bg-white hover:bg-gray-200 text-gray-900' : 'bg-gray-900 hover:bg-gray-800 text-white'} disabled:bg-gray-400 font-bold py-2.5 px-5 rounded-full transition-all text-sm`}
+                        className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white disabled:bg-gray-400 font-bold py-3 px-6 rounded-xl transition-all text-sm shadow-lg hover:shadow-xl"
                       >
                         {isLoading ? (
                           <>
@@ -888,7 +929,7 @@ function App() {
                       <button
                         onClick={resetRecording}
                         disabled={isLoading}
-                        className={`w-full flex items-center justify-center space-x-2 border-2 ${darkMode ? 'border-gray-600 hover:border-gray-500 text-gray-300' : 'border-gray-300 hover:border-gray-400 text-gray-700'} disabled:border-gray-200 font-semibold py-2 px-4 rounded-full transition-all text-xs`}
+                        className={`w-full flex items-center justify-center space-x-2 border-2 ${darkMode ? 'border-purple-600 hover:border-purple-500 text-purple-300' : 'border-purple-200 hover:border-purple-300 text-purple-700'} disabled:border-gray-200 font-semibold py-2.5 px-5 rounded-xl transition-all text-sm hover:bg-purple-50`}
                       >
                         <span>🔄</span>
                         <span>Try Again</span>
@@ -902,38 +943,52 @@ function App() {
                     <p className="text-sm font-semibold">⏰ Time's up! Stop recording.</p>
                   </div>
                 )}
+
+                {showSpeechWarning && isRecording && (
+                  <div className={`mt-3 p-3 ${darkMode ? 'bg-red-900 border-red-600 text-red-200' : 'bg-red-50 border-red-300 text-red-800'} border-2 rounded-xl text-center transition-colors animate-pulse`}>
+                    <p className="text-sm font-bold mb-2">🎤 No speech detected!</p>
+                    <p className="text-xs mb-2">Please make sure the student is speaking clearly into the microphone, or check for background noise.</p>
+                    <button
+                      onClick={() => {
+                        stopRecording();
+                        setTimeout(() => startRecording(), 500);
+                      }}
+                      className={`mt-2 px-4 py-2 rounded-full font-semibold text-xs ${darkMode ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-red-600 hover:bg-red-700 text-white'} transition-colors`}
+                    >
+                      Restart Recording
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right Column: Passage Display & Results */}
-            <div className="space-y-4">
-              {/* Passage Display - Compact */}
-              {selectedPassage && !report && (
-                <div className={`${darkMode ? 'bg-gradient-to-br from-amber-900 to-yellow-900 border-amber-700' : 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'} rounded-2xl border p-5 shadow-md transition-colors sticky top-4`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className={`text-base font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
-                    <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full text-xs font-semibold shadow-sm">{selectedPassage.level}</span>
-                  </div>
-                  <div className={`${darkMode ? 'bg-gray-800 border-amber-600 text-gray-200' : 'bg-white border-amber-200 text-gray-800'} rounded-xl p-3 border shadow-sm transition-colors max-h-96 overflow-y-auto`}>
-                    <p className="leading-relaxed text-sm">{selectedPassage.text}</p>
-                  </div>
+            {/* Bottom: Full-Width Reading Passage */}
+            {selectedPassage && (
+              <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl border-2 p-6 shadow-xl transition-colors`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedPassage.title || 'Reading Passage'}</h2>
+                  <span className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-md">{selectedPassage.level}</span>
                 </div>
-              )}
+                <div className={`${darkMode ? 'bg-gray-800 border-purple-600 text-gray-200' : 'bg-gray-50 border-gray-200 text-gray-800'} rounded-xl p-5 border-2 shadow-sm transition-colors`}>
+                  <p className="leading-relaxed text-base">{selectedPassage.text}</p>
+                </div>
+              </div>
+            )}
 
-              {/* Results Display */}
-              {report && (
-                <div className="space-y-6">
-                  <h2 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center transition-colors`}>
-                    <span className="text-4xl mr-3">🎉</span>
-                    Reading Results
-                  </h2>
-                  
-                  {/* Two Column Layout for Results */}
-                  <div className="grid lg:grid-cols-3 gap-6">
-                    {/* Left Column: Metrics & Level Progress */}
-                    <div className="lg:col-span-2 space-y-4">
-                      {/* Key Metrics Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Results Display - Full Width Below */}
+            {report && (
+            <div className="mt-6 space-y-6">
+              <div className={`${darkMode ? 'bg-gradient-to-r from-purple-900 to-indigo-900' : 'bg-gradient-to-r from-purple-500 to-indigo-600'} rounded-2xl p-6 shadow-xl`}>
+                <h2 className="text-3xl font-bold text-white flex items-center">
+                  <span className="text-4xl mr-3">🎉</span>
+                  Reading Results
+                </h2>
+              </div>
+              
+              {/* Main Results Layout */}
+              <div className="space-y-6">
+                {/* Top Section: Metrics Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <MetricCard
                       icon={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                       label="Speed"
@@ -967,10 +1022,13 @@ function App() {
                         label="Punctuation"
                         value={`${Math.round(report.punctuation_score)}%`}
                         gradient="blue"
+                        darkMode={darkMode}
                       />
                     )}
-                  </div>
+                </div>
 
+                {/* Two Column Layout: Level Progress + Details */}
+                <div className="grid lg:grid-cols-2 gap-6">
                   {/* Level Progression Indicator - Compact */}
                   {(() => {
                     const accuracy = report.accuracy_percent || 0;
@@ -1076,160 +1134,159 @@ function App() {
                     );
                   })()}
 
-                  {/* Additional Details - Removed duplicate, keeping only the one in right column */}
+                  {/* Additional Details */}
+                  <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-700 border-gray-600' : 'bg-gradient-to-br from-slate-50 to-gray-50 border-gray-200'} rounded-2xl border p-4 shadow-md transition-colors`}>
+                    <h3 className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 transition-colors`}>📝 Details</h3>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-2 rounded-lg transition-colors`}>
+                        <span className={`${darkMode ? 'text-purple-300' : 'text-gray-600'} block text-[10px]`}>Duration</span>
+                        <span className={`font-bold ${darkMode ? 'text-purple-100' : 'text-purple-700'} text-base`}>{report.duration_seconds}s</span>
+                      </div>
+                      <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-2 rounded-lg transition-colors`}>
+                        <span className={`${darkMode ? 'text-blue-300' : 'text-gray-600'} block text-[10px]`}>Correct Words</span>
+                        <span className={`font-bold ${darkMode ? 'text-blue-100' : 'text-blue-700'} text-base`}>{report.correct_words}/{report.total_words}</span>
+                      </div>
+                    </div>
                   </div>
+                </div>
 
-                    {/* Right Column: Details & Interactive Features */}
-                    <div className="space-y-4">
-                      {/* Additional Details */}
-                      <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 to-gray-700 border-gray-600' : 'bg-gradient-to-br from-slate-50 to-gray-50 border-gray-200'} rounded-2xl border p-4 shadow-md transition-colors`}>
-                        <h3 className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 transition-colors`}>📝 Details</h3>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-2 rounded-lg transition-colors`}>
-                            <span className={`${darkMode ? 'text-purple-300' : 'text-gray-600'} block text-[10px]`}>Duration</span>
-                            <span className={`font-bold ${darkMode ? 'text-purple-100' : 'text-purple-700'} text-base`}>{report.duration_seconds}s</span>
-                          </div>
-                          <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-2 rounded-lg transition-colors`}>
-                            <span className={`${darkMode ? 'text-blue-300' : 'text-gray-600'} block text-[10px]`}>Correct Words</span>
-                            <span className={`font-bold ${darkMode ? 'text-blue-100' : 'text-blue-700'} text-base`}>{report.correct_words}/{report.total_words}</span>
-                          </div>
+                {/* Punctuation Awareness - Full Width Below */}
+                {report.punctuation_score !== undefined && (
+                  <div className={`${darkMode ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700' : 'bg-white border-purple-200'} rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-2xl">⏸️</span>
+                      <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        Reading Pauses
+                        <span className="ml-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          PRO
+                        </span>
+                      </h2>
+                    </div>
+
+                    {/* Horizontal Layout: Score and Breakdown */}
+                    <div className="grid md:grid-cols-2 gap-4 mb-4">
+                      {/* Score Display */}
+                      <div className={`${darkMode ? 'bg-gray-800 border-purple-600' : 'bg-gray-50 border-gray-200'} rounded-xl p-5 text-center border-2 transition-colors shadow-sm`}>
+                        <div className="text-4xl font-black mb-2" style={{
+                          background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent'
+                        }}>
+                          {Math.round(report.punctuation_score)}%
                         </div>
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Pause Score</p>
                       </div>
 
-                  {/* Punctuation Awareness - Horizontal Layout */}
-                  {report.punctuation_score !== undefined && (
-                    <div className={`${darkMode ? 'bg-gradient-to-br from-cyan-900 to-blue-900 border-cyan-700' : 'bg-gradient-to-br from-cyan-50 to-blue-50 border-cyan-300'} rounded-2xl shadow-md p-4 border-2 transition-colors`}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl">⏸️</span>
-                        <h2 className={`text-lg font-black ${darkMode ? 'text-cyan-200' : 'text-cyan-700'}`}>
-                          Reading Pauses
-                          <span className="ml-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                            PRO
-                          </span>
-                        </h2>
-                      </div>
-
-                      {/* Horizontal Layout: Score and Breakdown */}
-                      <div className="grid md:grid-cols-2 gap-3 mb-3">
-                        {/* Score Display */}
-                        <div className={`${darkMode ? 'bg-gray-800 border-cyan-600' : 'bg-white border-cyan-200'} rounded-xl p-4 text-center border-2 transition-colors`}>
-                          <div className="text-4xl font-black mb-1" style={{
-                            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent'
-                          }}>
-                            {Math.round(report.punctuation_score)}%
+                      {/* Visual Breakdown - Horizontal Grid */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* Good Pauses */}
+                        <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'} transition-colors`}>
+                          <span className="text-lg mb-1">✓</span>
+                          <div className={`text-xl font-black ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                            {report.punctuation_details?.matched_pauses || 0}
                           </div>
-                          <p className={`text-sm font-bold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Pause Score</p>
+                          <span className={`font-bold text-[10px] ${darkMode ? 'text-green-300' : 'text-green-700'}`}>Good</span>
+                        </div>
+                        
+                        {/* Missed Pauses */}
+                        <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'} transition-colors`}>
+                          <span className="text-lg mb-1">⚠️</span>
+                          <div className={`text-xl font-black ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                            {((report.punctuation_details?.total_expected_pauses || 0) - (report.punctuation_details?.matched_pauses || 0))}
+                          </div>
+                          <span className={`font-bold text-[10px] ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Missed</span>
                         </div>
 
-                        {/* Visual Breakdown - Horizontal Grid */}
-                        <div className="grid grid-cols-3 gap-2">
-                          {/* Good Pauses */}
-                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-green-900/30 border-green-700' : 'bg-green-50 border-green-200'} transition-colors`}>
-                            <span className="text-lg mb-1">✓</span>
-                            <div className={`text-xl font-black ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                              {report.punctuation_details?.matched_pauses || 0}
-                            </div>
-                            <span className={`font-bold text-[10px] ${darkMode ? 'text-green-300' : 'text-green-700'}`}>Good</span>
+                        {/* Total Expected */}
+                        <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} transition-colors`}>
+                          <span className="text-lg mb-1">🎯</span>
+                          <div className={`text-xl font-black ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                            {report.punctuation_details?.total_expected_pauses || 0}
                           </div>
-                          
-                          {/* Missed Pauses */}
-                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-orange-900/30 border-orange-700' : 'bg-orange-50 border-orange-200'} transition-colors`}>
-                            <span className="text-lg mb-1">⚠️</span>
-                            <div className={`text-xl font-black ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
-                              {((report.punctuation_details?.total_expected_pauses || 0) - (report.punctuation_details?.matched_pauses || 0))}
-                            </div>
-                            <span className={`font-bold text-[10px] ${darkMode ? 'text-orange-300' : 'text-orange-700'}`}>Missed</span>
-                          </div>
-
-                          {/* Total Expected */}
-                          <div className={`flex flex-col items-center justify-center rounded-lg p-2 border ${darkMode ? 'bg-blue-900/30 border-blue-700' : 'bg-blue-50 border-blue-200'} transition-colors`}>
-                            <span className="text-lg mb-1">🎯</span>
-                            <div className={`text-xl font-black ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                              {report.punctuation_details?.total_expected_pauses || 0}
-                            </div>
-                            <span className={`font-bold text-[10px] ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Total</span>
-                          </div>
+                          <span className={`font-bold text-[10px] ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>Total</span>
                         </div>
                       </div>
+                    </div>
 
-                      {/* What This Means - Full Width */}
-                      <div className={`${darkMode ? 'bg-blue-900/50 border-blue-700' : 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'} rounded-xl p-3 mb-3 border-2 transition-colors`}>
+                    {/* What This Means - Full Width */}
+                    <div className={`${darkMode ? 'bg-purple-900/50 border-purple-700' : 'bg-purple-50 border-purple-200'} rounded-xl p-4 mb-4 border-2 transition-colors`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-xl">💡</span>
+                        <div>
+                          <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>What does this mean?</p>
+                          <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {report.punctuation_score >= 80 
+                              ? "🌟 Excellent! The student paused naturally at commas (,) and periods (.). This shows they understand the story!"
+                              : report.punctuation_score >= 60
+                              ? "✅ Good! The student paused at most punctuation marks. They're reading with understanding."
+                              : report.punctuation_score >= 40
+                              ? "📖 Developing. The student is learning to pause at punctuation. Practice will help!"
+                              : "💡 Needs Practice. The student read without pausing at commas or periods. They may not understand the story yet."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Formula and Tip */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Simple Formula */}
+                      <div className={`rounded-xl p-4 border-2 flex items-center justify-center ${darkMode ? 'bg-gray-800 border-purple-700' : 'bg-gray-50 border-gray-200'} transition-colors shadow-sm`}>
+                        <p className={`text-center text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>Score = </span>
+                          <span className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{report.punctuation_details?.matched_pauses || 0}</span>
+                          <span className="mx-1">÷</span>
+                          <span className={`font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{report.punctuation_details?.total_expected_pauses || 0}</span>
+                          <span className="mx-1">×</span>
+                          <span className="font-bold">100</span>
+                        </p>
+                      </div>
+
+                      {/* Teacher Tip */}
+                      <div className={`rounded-xl p-4 border-2 ${darkMode ? 'bg-gray-800 border-purple-700' : 'bg-gray-50 border-gray-200'} transition-colors shadow-sm`}>
                         <div className="flex items-start gap-2">
-                          <span className="text-xl">💡</span>
+                          <span className="text-lg">👨‍🏫</span>
                           <div>
-                            <p className={`font-bold text-xs mb-1.5 ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>What does this mean?</p>
-                            <p className={`text-[11px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {report.punctuation_score >= 80 
-                                ? "🌟 Excellent! The student paused naturally at commas (,) and periods (.). This shows they understand the story!"
-                                : report.punctuation_score >= 60
-                                ? "✅ Good! The student paused at most punctuation marks. They're reading with understanding."
-                                : report.punctuation_score >= 40
-                                ? "📖 Developing. The student is learning to pause at punctuation. Practice will help!"
-                                : "💡 Needs Practice. The student read without pausing at commas or periods. They may not understand the story yet."}
+                            <p className={`font-bold text-sm mb-2 ${darkMode ? 'text-purple-400' : 'text-purple-700'}`}>Teacher Tip:</p>
+                            <p className={`text-xs leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, not just pronouncing words.
                             </p>
                           </div>
                         </div>
                       </div>
-
-                      {/* Bottom Row: Formula and Tip */}
-                      <div className="grid md:grid-cols-2 gap-3">
-                        {/* Simple Formula */}
-                        <div className={`rounded-lg p-3 border flex items-center justify-center ${darkMode ? 'bg-purple-900/30 border-purple-700' : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'} transition-colors`}>
-                          <p className={`text-center text-[11px] ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            <span className={`font-bold ${darkMode ? 'text-purple-300' : 'text-purple-700'}`}>Score = </span>
-                            <span className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{report.punctuation_details?.matched_pauses || 0}</span>
-                            <span className="mx-1">÷</span>
-                            <span className={`font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{report.punctuation_details?.total_expected_pauses || 0}</span>
-                            <span className="mx-1">×</span>
-                            <span className="font-bold">100</span>
-                          </p>
-                        </div>
-
-                        {/* Teacher Tip */}
-                        <div className={`rounded-xl p-3 border ${darkMode ? 'bg-gradient-to-r from-yellow-900/50 to-amber-900/50 border-yellow-700' : 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300'} transition-colors`}>
-                          <div className="flex items-start gap-2">
-                            <span className="text-lg">👨‍🏫</span>
-                            <div>
-                              <p className={`font-bold text-xs mb-1 ${darkMode ? 'text-amber-300' : 'text-amber-800'}`}>Teacher Tip:</p>
-                              <p className={`text-[10px] leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                When students pause at punctuation, it shows they're reading for <strong>meaning</strong>, not just pronouncing words.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                     </div>
                   </div>
+                )}
 
-                  {/* Full Width: Interactive Word Playback */}
-                  {report.word_analysis && report.word_analysis.length > 0 && (
-                    <InteractiveWordPlayback 
-                      wordAnalysis={report.word_analysis}
-                      passageText={selectedPassage?.text || ''}
-                      audioPath={report.audio_path}
-                      opcodes={report.opcodes}
-                      asrWords={report.asr_words}
-                    />
-                  )}
-
-                </div>
-              )}
+                {/* Full Width: Interactive Word Playback */}
+                {report.word_analysis && report.word_analysis.length > 0 && (
+                  <InteractiveWordPlayback 
+                    wordAnalysis={report.word_analysis}
+                    passageText={selectedPassage?.text || ''}
+                    audioPath={report.audio_path}
+                    opcodes={report.opcodes}
+                    asrWords={report.asr_words}
+                  />
+                )}
+              </div>
             </div>
+          )}
           </div>
+        ) : view === 'uploads' ? (
+          <StudentTable />
+        ) : view === 'table' ? (
+          <StudentDashboard darkMode={darkMode} />
+        ) : view === 'profile' ? (
+          <Profile darkMode={darkMode} setView={setView} />
+        ) : view === 'analytics' ? (
+          <AdvancedAnalytics darkMode={darkMode} />
+        ) : view === 'passage' ? (
+          <UploadPassage darkMode={darkMode} />
         ) : selectedReport ? (
           /* Detailed Report View */
           <div className={`${darkMode ? 'bg-gray-800/90 border-purple-600' : 'bg-white/80 border-purple-200'} backdrop-blur-sm rounded-2xl shadow-xl p-6 border-2 transition-colors`}>
             <button
               onClick={() => setSelectedReport(null)}
-              className={`mb-4 px-4 py-2 rounded-lg font-bold transition-all ${
-                darkMode 
-                  ? 'bg-gray-700 text-white hover:bg-gray-600' 
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-              }`}
+              className="mb-6 px-6 py-3 rounded-xl font-bold transition-all bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl"
             >
               ← Back to Student Dashboard
             </button>
@@ -1250,21 +1307,21 @@ function App() {
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className={`${darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-50 text-blue-700'} p-4 rounded-lg`}>
-                  <span className="block text-sm">Speed</span>
-                  <span className="font-bold text-2xl">{Math.round(selectedReport.wcpm)}</span>
+                <div className={`${darkMode ? 'bg-purple-900 border-purple-700' : 'bg-white border-purple-200'} p-5 rounded-xl border-2 shadow-lg transition-colors`}>
+                  <span className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-gray-600'}`}>Speed</span>
+                  <span className={`font-black text-3xl ${darkMode ? 'text-white' : 'text-gray-900'}`}>{Math.round(selectedReport.wcpm)}</span>
                 </div>
-                <div className={`${darkMode ? 'bg-green-900 text-green-200' : 'bg-green-50 text-green-700'} p-4 rounded-lg`}>
-                  <span className="block text-sm">Accuracy</span>
-                  <span className="font-bold text-2xl">{Math.round(selectedReport.accuracy_percent)}%</span>
+                <div className={`${darkMode ? 'bg-green-900 border-green-700' : 'bg-white border-green-200'} p-5 rounded-xl border-2 shadow-lg transition-colors`}>
+                  <span className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-green-300' : 'text-gray-600'}`}>Accuracy</span>
+                  <span className={`font-black text-3xl ${darkMode ? 'text-white' : 'text-gray-900'}`}>{Math.round(selectedReport.accuracy_percent)}%</span>
                 </div>
-                <div className={`${darkMode ? 'bg-purple-900 text-purple-200' : 'bg-purple-50 text-purple-700'} p-4 rounded-lg`}>
-                  <span className="block text-sm">Prosody</span>
-                  <span className="font-bold text-2xl">{selectedReport.prosody_score}</span>
+                <div className={`${darkMode ? 'bg-purple-900 border-purple-700' : 'bg-white border-purple-200'} p-5 rounded-xl border-2 shadow-lg transition-colors`}>
+                  <span className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-gray-600'}`}>Prosody</span>
+                  <span className={`font-black text-3xl ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedReport.prosody_score}</span>
                 </div>
-                <div className={`${darkMode ? 'bg-cyan-900 text-cyan-200' : 'bg-cyan-50 text-cyan-700'} p-4 rounded-lg`}>
-                  <span className="block text-sm">Punctuation</span>
-                  <span className="font-bold text-2xl">{selectedReport.punctuation_score ? Math.round(selectedReport.punctuation_score) : 0}%</span>
+                <div className={`${darkMode ? 'bg-purple-900 border-purple-700' : 'bg-white border-purple-200'} p-5 rounded-xl border-2 shadow-lg transition-colors`}>
+                  <span className={`block text-sm font-semibold mb-2 ${darkMode ? 'text-purple-300' : 'text-gray-600'}`}>Punctuation</span>
+                  <span className={`font-black text-3xl ${darkMode ? 'text-white' : 'text-gray-900'}`}>{selectedReport.punctuation_score ? Math.round(selectedReport.punctuation_score) : 0}%</span>
                 </div>
               </div>
 

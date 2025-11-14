@@ -48,18 +48,27 @@ export default function LandingPage({ onGetStarted, darkMode, toggleDarkMode }) 
       </nav>
 
       {/* Hero Section */}
-      <section className="py-24">
-        <div className="container mx-auto px-8">
+      <section className="relative py-24 overflow-hidden">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url(${process.env.PUBLIC_URL}/students-background.png)`
+          }}
+        />
+        
+        {/* Content */}
+        <div className="container mx-auto px-8 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className={`text-6xl md:text-7xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} mb-6`}>
+            <h2 className="text-6xl md:text-7xl font-black text-white mb-6" style={{textShadow: '0 4px 12px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5)'}}>
               Stop Guessing. Start Teaching.
             </h2>
-            <p className={`text-2xl ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-12 leading-relaxed`}>
+            <p className="text-2xl text-white mb-12 leading-relaxed font-semibold" style={{textShadow: '0 2px 8px rgba(0,0,0,0.7), 0 1px 4px rgba(0,0,0,0.5)'}}>
               AI-Powered Reading Diagnostics in 60 Seconds. Get objective data on Speed, Accuracy, and Prosody.
             </p>
             <button
               onClick={onGetStarted}
-              className={`px-10 py-4 ${darkMode ? 'bg-white text-gray-900 hover:bg-gray-200' : 'bg-gray-900 text-white hover:bg-gray-800'} rounded-full font-bold text-lg transition-all shadow-lg hover:shadow-xl`}
+              className="px-10 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-full font-bold text-lg transition-all shadow-2xl hover:shadow-3xl transform hover:scale-105"
             >
               Get Started Free
             </button>
