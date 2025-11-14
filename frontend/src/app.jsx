@@ -309,6 +309,7 @@ function App() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [history, setHistory] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
@@ -618,106 +619,221 @@ function App() {
           {/* Profile is now a dedicated page (see Header 'View Profile') */}
         </>
       ) : (
-        // Show Dashboard
+        // Show App with Side Panel
         <>
-          <Header onLoginClick={() => openAuth('login')} onLogout={handleLogout} onLogoClick={handleLogout} currentUser={currentUser} onViewProfile={openProfilePage} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+          <div className="flex h-screen overflow-hidden">
+            {/* Side Panel */}
+            <div className={`${sidebarCollapsed ? 'w-20' : 'w-64'} ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-r flex flex-col transition-all duration-300`}>
+              {/* Logo Section */}
+              <div className="p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between">
+                {!sidebarCollapsed && (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📖</div>
+                    <div>
+                      <h1 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} tracking-tight`}>Akshara</h1>
+                      <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs font-medium`}>Reading Fluency AI</p>
+                    </div>
+                  </div>
+                )}
+                {sidebarCollapsed && (
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md mx-auto">📖</div>
+                )}
+              </div>
 
-          {/* Profile Page */}
-          {view === 'profile' && (
-            <div className="container mx-auto px-4 py-8">
-              <Profile user={currentUser} token={authToken} onClose={() => setView('record')} onUpdateUser={(u) => setCurrentUser(u)} onLogout={() => { handleLogout(); setView('record'); }} />
+              {/* Toggle Button */}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className={`mx-4 my-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors flex items-center justify-center`}
+              >
+                {sidebarCollapsed ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Navigation Menu */}
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button
+                  onClick={() => setView('dashboard')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'dashboard'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Dashboard' : ''}
+                >
+                  <span className="text-xl">📊</span>
+                  {!sidebarCollapsed && <span>Dashboard</span>}
+                </button>
+                <button
+                  onClick={() => setView('record')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'record'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Record Reading' : ''}
+                >
+                  <span className="text-xl">🎤</span>
+                  {!sidebarCollapsed && <span>Record Reading</span>}
+                </button>
+                <button
+                  onClick={() => {
+                    setView('history');
+                    fetchStudents();
+                    setSelectedStudent(null);
+                    setSelectedReport(null);
+                  }}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'history'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'All Students' : ''}
+                >
+                  <span className="text-xl">👥</span>
+                  {!sidebarCollapsed && <span>All Students</span>}
+                </button>
+                <button
+                  onClick={() => setView('analytics')}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${
+                    view === 'analytics'
+                      ? darkMode ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700'
+                      : darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={sidebarCollapsed ? 'Analytics' : ''}
+                >
+                  <span className="text-xl">📈</span>
+                  {!sidebarCollapsed && <span>Analytics</span>}
+                </button>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                  title={sidebarCollapsed ? 'Upload Students' : ''}
+                >
+                  <span className="text-xl">📤</span>
+                  {!sidebarCollapsed && <span>Upload Students</span>}
+                </button>
+                <button
+                  onClick={() => setShowUploadPassage(true)}
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl font-semibold text-sm transition-all ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                  title={sidebarCollapsed ? 'Upload Passage' : ''}
+                >
+                  <span className="text-xl">📖</span>
+                  {!sidebarCollapsed && <span>Upload Passage</span>}
+                </button>
+              </nav>
+
+              {/* User Profile Section */}
+              <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                {!sidebarCollapsed ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 ${darkMode ? 'bg-purple-700' : 'bg-purple-200'} rounded-full flex items-center justify-center font-bold ${darkMode ? 'text-white' : 'text-purple-700'}`}>
+                        {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} truncate`}>
+                          {currentUser?.name || 'User'}
+                        </p>
+                        <button
+                          onClick={openProfilePage}
+                          className={`text-xs ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'} font-medium`}
+                        >
+                          View Profile
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={toggleDarkMode}
+                      className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors`}
+                      aria-label="Toggle dark mode"
+                    >
+                      {darkMode ? (
+                        <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-red-400' : 'hover:bg-gray-100 text-red-600'} transition-colors`}
+                      aria-label="Logout"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className={`w-10 h-10 ${darkMode ? 'bg-purple-700' : 'bg-purple-200'} rounded-full flex items-center justify-center font-bold ${darkMode ? 'text-white' : 'text-purple-700'} mx-auto`}>
+                      {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                    <button
+                      onClick={toggleDarkMode}
+                      className={`w-full p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors flex justify-center`}
+                      aria-label="Toggle dark mode"
+                    >
+                      {darkMode ? (
+                        <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`w-full p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-red-400' : 'hover:bg-gray-100 text-red-600'} transition-colors flex justify-center`}
+                      aria-label="Logout"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {view !== 'profile' && (
-            <>
-              {/* Navigation Tabs */}
-      <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-md border-b transition-colors`}>
-        <div className="container mx-auto px-4">
-          <div className="flex space-x-6">
-            <button
-              onClick={() => setView('dashboard')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'dashboard'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">🏠</span>
-                <span>Dashboard</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setView('record')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'record'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">🎤</span>
-                <span>Record Reading</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📤</span>
-                <span>Upload Students</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setShowUploadPassage(true)}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'}`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📖</span>
-                <span>Upload Passage</span>
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setView('history');
-                fetchStudents();
-                setSelectedStudent(null);
-                setSelectedReport(null);
-              }}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'history'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📊</span>
-                <span>All Students</span>
-              </span>
-            </button>
-            <button
-              onClick={() => setView('analytics')}
-              className={`py-3 px-6 border-b-2 font-semibold text-sm transition-all ${
-                view === 'analytics'
-                  ? darkMode ? 'border-purple-500 text-purple-400' : 'border-purple-600 text-purple-700'
-                  : darkMode ? 'border-transparent text-gray-400 hover:text-purple-400 hover:border-purple-600' : 'border-transparent text-gray-500 hover:text-purple-600 hover:border-purple-300'
-              }`}
-            >
-              <span className="flex items-center space-x-2">
-                <span className="text-xl">📈</span>
-                <span>Analytics</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
+            {/* Main Content Area */}
+            <div className="flex-1 overflow-auto">
+              {/* Profile Page */}
+              {view === 'profile' && (
+                <div className="container mx-auto px-4 py-8">
+                  <Profile user={currentUser} token={authToken} onClose={() => setView('dashboard')} onUpdateUser={(u) => setCurrentUser(u)} onLogout={() => { handleLogout(); }} />
+                </div>
+              )}
 
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
-        {error && <Alert type="error" message={error} onClose={() => setError(null)} darkMode={darkMode} />}
+              {view !== 'profile' && (
+                <>
+                  {/* Page Header */}
+                  <div className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b p-6 transition-colors`}>
+                    <h1 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {view === 'dashboard' && '📊 Dashboard'}
+                      {view === 'record' && '🎤 Record Reading'}
+                      {view === 'history' && '👥 All Students'}
+                      {view === 'analytics' && '📈 Analytics'}
+                    </h1>
+                  </div>
 
-        {view === 'dashboard' ? (
+                  {/* Main Content */}
+                  <div className="p-6">
+                    {error && <Alert type="error" message={error} onClose={() => setError(null)} darkMode={darkMode} />}
+
+                    {view === 'dashboard' ? (
           <Dashboard setView={setView} darkMode={darkMode} />
         ) : view === 'record' ? (
           <div className="max-w-7xl mx-auto px-4 space-y-4">
@@ -1357,9 +1473,13 @@ function App() {
             darkMode={darkMode}
           />
         )}
-      </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-      {/* Student Upload Modal */}
+          {/* Student Upload Modal */}
       {showUploadModal && (
         <StudentUpload
           onUploadSuccess={() => {
@@ -1401,18 +1521,6 @@ function App() {
           </div>
         </div>
       )}
-
-            </>
-          )}
-
-          {/* Footer */}
-          <footer className="bg-gradient-to-r from-purple-500 to-pink-500 mt-8 border-t-4 border-yellow-400">
-            <div className="container mx-auto px-4 py-3">
-              <p className="text-center text-white text-xs font-bold">
-                ✨ Akshara - Making Reading Fun with AI Magic! 🎉
-              </p>
-            </div>
-          </footer>
         </>
       )}
       </div>
