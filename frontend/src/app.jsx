@@ -30,7 +30,7 @@ const Spinner = () => (
   </svg>
 );
 
-const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, toggleDarkMode }) => {
+const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, onLogoClick, darkMode, toggleDarkMode }) => {
   // Local state for small profile dropdown
   const [showDropdown, setShowDropdown] = useState(false);
   const btnRef = useRef(null);
@@ -69,8 +69,8 @@ const Header = ({ onLoginClick, onLogout, currentUser, onViewProfile, darkMode, 
     <header className={`${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-sm transition-colors`}>
       <div className="container mx-auto px-8 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📚</div>
+          <div className="flex items-center space-x-3 cursor-pointer" onClick={onLogoClick}>
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-lg flex items-center justify-center text-xl shadow-md">📖</div>
             <div>
               <h1 className={`text-xl font-black ${darkMode ? 'text-white' : 'text-gray-900'} tracking-tight`}>Akshara</h1>
               <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs font-medium`}>Reading Fluency AI</p>
@@ -620,7 +620,7 @@ function App() {
       ) : (
         // Show Dashboard
         <>
-          <Header onLoginClick={() => openAuth('login')} onLogout={handleLogout} currentUser={currentUser} onViewProfile={openProfilePage} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+          <Header onLoginClick={() => openAuth('login')} onLogout={handleLogout} onLogoClick={handleLogout} currentUser={currentUser} onViewProfile={openProfilePage} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
 
           {/* Profile Page */}
           {view === 'profile' && (
